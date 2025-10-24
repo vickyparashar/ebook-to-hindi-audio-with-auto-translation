@@ -63,9 +63,27 @@ function setupEventListeners() {
         });
     }
 
-    // File upload
+    // File upload - proper handling for mobile
     if (fileInput) fileInput.addEventListener('change', handleFileSelect);
-    if (uploadArea) uploadArea.addEventListener('click', () => fileInput.click());
+    
+    // Browse Files button
+    const browseFilesBtn = document.getElementById('browse-files-btn');
+    if (browseFilesBtn) {
+        browseFilesBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event bubbling
+            fileInput.click();
+        });
+    }
+    
+    // Upload area click (but not the button since it has its own handler)
+    if (uploadArea) {
+        uploadArea.addEventListener('click', (e) => {
+            // Only trigger file input if clicking the area itself, not the button
+            if (e.target === uploadArea || e.target.closest('.upload-icon, h3, p')) {
+                fileInput.click();
+            }
+        });
+    }
     
     // Drag and drop
     if (uploadArea) {
@@ -99,6 +117,21 @@ function setupEventListeners() {
         volumeSlider.addEventListener('input', (e) => {
             audioElement.volume = e.target.value / 100;
         });
+    }
+    
+    // Audio events - auto-update UI when audio state changes
+    if (audioElement) {
+        audioElement.addEventListener('play', () => {
+            isPlaying = true;
+            updatePlayButton(true);
+        });
+        
+        audioElement.addEventListener('pause', () => {
+            isPlaying = false;
+            updatePlayButton(false);
+        });
+        
+        audioElement.addEventListener('ended', nextPage);
     }
     
     // Audio events
@@ -285,7 +318,8 @@ async function openBook(bookId) {
             
             showPlayer();
             updatePlayerInfo();
-            loadPage(currentPage);
+            // Auto-play when opening book from library
+            loadPage(currentPage, true);
         } else {
             showError(data.error || 'Failed to open book');
         }
@@ -354,7 +388,7 @@ function updatePageInfo() {
 }
 
 // Audio Player
-async function loadPage(pageNum) {
+async function loadPage(pageNum, autoPlay = false) {
     if (pageNum < 0 || pageNum >= totalPages) {
         console.log('Page out of range');
         return;
@@ -379,6 +413,23 @@ async function loadPage(pageNum) {
             if (audioElement) {
                 audioElement.src = data.audio_url;
                 audioElement.load();
+                
+                // Auto-play if requested (when opening book from library)
+                if (autoPlay) {
+                    console.log('🎵 Auto-play requested for page', pageNum + 1);
+                    // Wait for audio to be ready before playing
+                    audioElement.addEventListener('canplay', function playOnReady() {
+                        console.log('🎵 Audio ready, attempting auto-play...');
+                        audioElement.play()
+                            .then(() => {
+                                console.log('✅ Auto-play successful');
+                            })
+                            .catch(err => {
+                                console.log('⚠️ Auto-play prevented by browser (user interaction required):', err.message);
+                            });
+                        audioElement.removeEventListener('canplay', playOnReady);
+                    }, { once: true });
+                }
             }
             
             // Update progress
