@@ -48,6 +48,32 @@ const completedBooksSpan = document.getElementById('completed-books');
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     audioElement = document.getElementById('audio-element');
+    
+    // Mobile audio unlock - required for iOS and some Android browsers
+    if (audioElement) {
+        // Set initial volume
+        audioElement.volume = 1.0;
+        
+        // Unlock audio on first user interaction (mobile requirement)
+        const unlockAudio = () => {
+            console.log('🔓 Unlocking audio for mobile...');
+            audioElement.play().then(() => {
+                audioElement.pause();
+                audioElement.currentTime = 0;
+                console.log('✅ Audio unlocked successfully');
+            }).catch(err => {
+                console.log('⚠️ Audio unlock attempt:', err.message);
+            });
+            // Remove listeners after first unlock attempt
+            document.removeEventListener('touchstart', unlockAudio);
+            document.removeEventListener('click', unlockAudio);
+        };
+        
+        // Try to unlock on first touch or click
+        document.addEventListener('touchstart', unlockAudio, { once: true });
+        document.addEventListener('click', unlockAudio, { once: true });
+    }
+    
     setupEventListeners();
     loadLibrary();
     console.log('📚 Hindi Audiobook Library initialized');
@@ -138,22 +164,29 @@ function setupEventListeners() {
         audioElement.addEventListener('play', () => {
             isPlaying = true;
             updatePlayButton(true);
+            console.log('🎵 Audio started playing');
         });
         
         audioElement.addEventListener('pause', () => {
             isPlaying = false;
             updatePlayButton(false);
+            console.log('⏸️ Audio paused');
         });
         
-        audioElement.addEventListener('ended', nextPage);
-    }
-    
-    // Audio events
-    if (audioElement) {
         audioElement.addEventListener('timeupdate', updateAudioProgress);
+        
         audioElement.addEventListener('ended', handleAudioEnded);
+        
         audioElement.addEventListener('loadedmetadata', () => {
             if (totalTimeSpan) totalTimeSpan.textContent = formatTime(audioElement.duration);
+            console.log('📊 Audio metadata loaded, duration:', audioElement.duration);
+        });
+        
+        // Error handling for audio
+        audioElement.addEventListener('error', (e) => {
+            console.error('❌ Audio error:', e);
+            showError('Failed to load audio file');
+            isLoadingPage = false;
         });
     }
 }
@@ -432,24 +465,49 @@ async function loadPage(pageNum, autoPlay = false) {
             
             // Load audio
             if (audioElement) {
+                // Stop any currently playing audio first
+                audioElement.pause();
+                audioElement.currentTime = 0;
+                
                 audioElement.src = data.audio_url;
                 audioElement.load();
                 
                 // Auto-play if requested (when opening book from library)
                 if (autoPlay) {
                     console.log('🎵 Auto-play requested for page', pageNum + 1);
-                    // Wait for audio to be ready before playing
-                    audioElement.addEventListener('canplay', function playOnReady() {
+                    
+                    // Try multiple approaches for mobile compatibility
+                    const attemptPlay = () => {
                         console.log('🎵 Audio ready, attempting auto-play...');
-                        audioElement.play()
-                            .then(() => {
-                                console.log('✅ Auto-play successful');
-                            })
-                            .catch(err => {
-                                console.log('⚠️ Auto-play prevented by browser (user interaction required):', err.message);
-                            });
-                        audioElement.removeEventListener('canplay', playOnReady);
-                    }, { once: true });
+                        
+                        // Method 1: Direct play with promise handling
+                        const playPromise = audioElement.play();
+                        
+                        if (playPromise !== undefined) {
+                            playPromise
+                                .then(() => {
+                                    console.log('✅ Auto-play successful');
+                                    isPlaying = true;
+                                    updatePlayButton(true);
+                                })
+                                .catch(err => {
+                                    console.log('⚠️ Auto-play prevented:', err.message);
+                                    // On mobile, user might need to tap play button manually
+                                    console.log('💡 Tip: Tap the play button to start audio');
+                                    isPlaying = false;
+                                    updatePlayButton(false);
+                                });
+                        }
+                    };
+                    
+                    // Wait for audio to be ready
+                    if (audioElement.readyState >= 3) {
+                        // Audio already loaded enough to play
+                        attemptPlay();
+                    } else {
+                        // Wait for canplay event
+                        audioElement.addEventListener('canplay', attemptPlay, { once: true });
+                    }
                 }
             }
             
@@ -490,14 +548,33 @@ async function updateBookProgress(pageNum) {
 }
 
 function togglePlayPause() {
-    if (!audioElement) return;
+    if (!audioElement) {
+        console.error('❌ Audio element not found');
+        return;
+    }
+    
+    console.log('🎵 Toggle play/pause - currently paused:', audioElement.paused);
     
     if (audioElement.paused) {
-        audioElement.play();
-        isPlaying = true;
-        updatePlayButton(true);
+        const playPromise = audioElement.play();
+        
+        if (playPromise !== undefined) {
+            playPromise
+                .then(() => {
+                    console.log('✅ Play successful');
+                    isPlaying = true;
+                    updatePlayButton(true);
+                })
+                .catch(error => {
+                    console.error('❌ Play failed:', error);
+                    showError('Failed to play audio. Please try again.');
+                    isPlaying = false;
+                    updatePlayButton(false);
+                });
+        }
     } else {
         audioElement.pause();
+        console.log('⏸️ Paused');
         isPlaying = false;
         updatePlayButton(false);
     }
@@ -537,15 +614,17 @@ function handleAudioEnded() {
 }
 
 function updateAudioProgress() {
-    if (!audioElement || !currentTimeSpan) return;
+    if (!audioElement) return;
     
-    const currentTime = audioElement.currentTime;
-    const duration = audioElement.duration;
+    const currentTime = audioElement.currentTime || 0;
+    const duration = audioElement.duration || 0;
     
-    if (currentTimeSpan) currentTimeSpan.textContent = formatTime(currentTime);
+    if (currentTimeSpan) {
+        currentTimeSpan.textContent = formatTime(currentTime);
+    }
     
     // Update progress ring
-    if (progressRing && duration > 0) {
+    if (progressRing && duration > 0 && !isNaN(duration)) {
         const progress = (currentTime / duration) * 100;
         const circumference = 2 * Math.PI * 90; // radius = 90
         const offset = circumference - (progress / 100) * circumference;
