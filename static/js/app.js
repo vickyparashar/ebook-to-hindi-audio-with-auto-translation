@@ -5,6 +5,7 @@ let totalPages = 0;
 let audioElement = null;
 let progressUpdateInterval = null;
 let isPlaying = false;
+let isLoadingPage = false; // Prevent multiple simultaneous page loads
 
 // DOM Elements
 const librarySection = document.getElementById('library-section');
@@ -59,9 +60,17 @@ function setupEventListeners() {
     if (closeModalBtn) closeModalBtn.addEventListener('click', closeUploadModal);
     if (uploadModal) {
         uploadModal.addEventListener('click', (e) => {
+            // Only close if clicking the modal backdrop itself (not child elements)
             if (e.target === uploadModal) closeUploadModal();
         });
     }
+    
+    // Escape key to close modal
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && uploadModal && !uploadModal.classList.contains('hidden')) {
+            closeUploadModal();
+        }
+    });
 
     // File upload - proper handling for mobile
     if (fileInput) fileInput.addEventListener('change', handleFileSelect);
@@ -78,7 +87,11 @@ function setupEventListeners() {
     // Upload area click (but not the button since it has its own handler)
     if (uploadArea) {
         uploadArea.addEventListener('click', (e) => {
-            // Only trigger file input if clicking the area itself, not the button
+            // Prevent triggering file input if clicking browse button
+            if (e.target.closest('#browse-files-btn')) {
+                return;
+            }
+            // Only trigger file input if clicking the upload area elements
             if (e.target === uploadArea || e.target.closest('.upload-icon, h3, p')) {
                 fileInput.click();
             }
@@ -113,9 +126,10 @@ function setupEventListeners() {
     if (backToLibraryBtn) backToLibraryBtn.addEventListener('click', showLibrary);
     if (textToggle) textToggle.addEventListener('click', toggleTextPanel);
     
-    if (volumeSlider) {
+    if (volumeSlider && audioElement) {
         volumeSlider.addEventListener('input', (e) => {
-            audioElement.volume = e.target.value / 100;
+            const volume = Math.max(0, Math.min(100, e.target.value)) / 100;
+            audioElement.volume = volume;
         });
     }
     
@@ -394,6 +408,13 @@ async function loadPage(pageNum, autoPlay = false) {
         return;
     }
     
+    // Prevent loading multiple pages simultaneously
+    if (isLoadingPage) {
+        console.log('⚠️ Page load already in progress, ignoring request');
+        return;
+    }
+    
+    isLoadingPage = true;
     currentPage = pageNum;
     updatePageInfo();
     
@@ -436,13 +457,16 @@ async function loadPage(pageNum, autoPlay = false) {
             await updateBookProgress(pageNum);
             
             hideProcessing();
+            isLoadingPage = false;
         } else {
             hideProcessing();
+            isLoadingPage = false;
             showError(data.error || 'Failed to load page');
         }
     } catch (error) {
         console.error('Error loading page:', error);
         hideProcessing();
+        isLoadingPage = false;
         showError('Failed to load page');
     }
 }
