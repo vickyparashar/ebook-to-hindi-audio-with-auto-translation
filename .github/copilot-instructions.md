@@ -12,11 +12,11 @@ python src/app.py  # Starts Flask on http://localhost:5000
 ```
 
 **Key Architecture Points:**
-- `src/app.py` - Flask server (no auto-reloader to preserve state)
-- `src/parser.py` - Extracts text from PDF/EPUB (0-indexed pages)
+- `src/app.py` - Flask server with global `current_pipeline` state (NO auto-reloader)
+- `src/parser.py` - Extracts text from PDF/EPUB (0-indexed pages)  
 - `src/translator.py` - English→Hindi with custom SSL bypass & caching
 - `src/tts.py` - gTTS audio generation with MD5-based filenames
-- `src/pipeline.py` - ThreadPoolExecutor for async prefetching
+- `src/pipeline.py` - ThreadPoolExecutor for async prefetching (max_workers=2)
 - `cache/` - Stores `translations.json` and `{md5hash}.mp3` files
 
 ## Critical Implementation Details
@@ -44,18 +44,26 @@ if not os.path.isabs(audio_path):
 ```
 **Why:** Flask's `send_file()` fails on relative paths when called from `src/` subdirectory.
 
-### 3. Flask Auto-Reloader Disabled
+### 3. Flask Auto-Reloader Disabled & Global State Pattern
 ```python
+# Global pipeline instance (src/app.py)
+current_pipeline = None
+
 app.run(debug=True, use_reloader=False)  # MUST be False
 ```
-**Why:** Auto-reload resets `current_pipeline` global variable, losing all processing state.
+**Why:** Auto-reload resets `current_pipeline` global variable, losing all processing state. The global pattern enables stateful processing across HTTP requests without session management.
 
-### 4. Async Prefetching (src/pipeline.py)
+### 4. Async Prefetching Architecture (src/pipeline.py)
 ```python
-# Prefetch 3 pages ahead using ThreadPoolExecutor
-executor.submit(self.process_page, page_num + i)
+# ThreadPoolExecutor with max_workers=2 prevents resource exhaustion
+self.executor = ThreadPoolExecutor(max_workers=2)
+
+# Prefetch 3 pages ahead using future-based async processing
+for i in range(1, self.prefetch_count + 1):
+    if page_num + i < self.total_pages:
+        self.executor.submit(self.process_page, page_num + i)
 ```
-**Pattern:** Process page N while pages N+1, N+2, N+3 generate in background threads.
+**Pattern:** Process page N while pages N+1, N+2, N+3 generate in background threads. Uses `threading.Lock()` for thread-safe state management.
 
 ### 5. Translation Caching (src/translator.py)
 ```python
@@ -80,10 +88,12 @@ audio_path = os.path.join(self.cache_dir, f"{cache_key}.mp3")
 
 ## Frontend Architecture (templates/index.html, static/)
 - **Vanilla JavaScript** - No frameworks, ~270 lines in `app.js`
+- **Global State Pattern** - Variables like `currentPage`, `totalPages` stored globally
 - **Gradient Purple Theme** - CSS with animations, responsive design
-- **Drag-drop upload** - HTML5 File API with visual feedback
+- **Drag-drop Upload** - HTML5 File API with visual feedback (`dragover`/`dragleave` classes)
 - **Audio Element** - Native HTML5 `<audio>` for streaming MP3 playback
-- **Auto-advance** - `audioElement.addEventListener('ended', nextPage)`
+- **Auto-advance** - `audioElement.addEventListener('ended', nextPage)` for seamless flow
+- **Error Handling** - Visual error states with retry mechanisms
 
 ### Project Structure (Recommended)
 ```
@@ -108,13 +118,15 @@ ai-translate/
 ```bash
 pip install -r requirements.txt  # Installs Flask, PyPDF2, gTTS, deep-translator, ebooklib
 python src/app.py                # Starts on http://localhost:5000 (no auto-reload)
-python test_audio_debug.py       # Test pipeline components
+python test_audio_debug.py       # Test pipeline components individually
+python test_components.py        # Unit tests for individual modules
 ```
 
 **Test File:** "The Alchemist mini.pdf" in `books/` folder (7 pages)
+**Debug Pattern:** Use `test_audio_debug.py` to test specific pages without full UI flow
 
 ### Smoke Testing with Playwright MCP (80/80 PASSING ✅)
-**Test execution:** Use Playwright MCP browser tools
+**Test execution:** Use Playwright MCP browser tools for comprehensive E2E testing
 ```javascript
 // Example test flow
 await page.goto('http://localhost:5000/');
@@ -123,18 +135,20 @@ await fileChooser.setFiles(['books/The Alchemist mini.pdf']);
 await page.waitForTimeout(5000);  // Wait for processing
 ```
 
-**Status tracking:** Update `atomic-smoke-tests.md` after each test
-- 14 categories: Server, Upload, Parsing, Translation, TTS, Player, etc.
-- All 80 tests currently passing
-- Re-run tests after any core component changes
+**Status tracking:** Update `atomic-smoke-tests.md` after each test run
+- 14 test categories: Server, Upload, Parsing, Translation, TTS, Player, etc.
+- All 80 tests currently passing ✅
+- Tests are numbered (T0001-T0080) with detailed descriptions
+- Re-run complete test suite after any core component changes
 
 ## Known Fixes & Gotchas
 
-1. **Windows Unicode Console**: Removed emoji from server startup (`print("AI-Powered...")` not `print("🎧 AI-Powered...")`)
-2. **pyttsx3 Replaced**: Windows compatibility issues led to gTTS adoption (internet required but reliable)
-3. **SSL Bypass Required**: Corporate networks need custom `SSLAdapter` and `verify=False`
-4. **Path Resolution**: Always use `os.path.abspath()` before `send_file()` in Flask routes
-5. **No Auto-Reload**: `use_reloader=False` prevents losing `current_pipeline` state
+1. **Windows Unicode Console**: Removed emoji from server startup logs to prevent encoding errors
+2. **pyttsx3 Replaced with gTTS**: Original TTS had Windows compatibility issues, gTTS requires internet but is cross-platform reliable
+3. **SSL Bypass Required**: Corporate networks block SSL verification - must use custom `SSLAdapter` with `verify=False` for translations
+4. **Path Resolution Critical**: Always use `os.path.abspath()` before Flask's `send_file()` - relative paths fail from `src/` subdirectory
+5. **No Auto-Reload**: `use_reloader=False` prevents losing `current_pipeline` global state on code changes
+6. **MD5 Cache Keys**: Both translation and audio files use content-based MD5 hashes as filenames for effective deduplication
 
 ## Project Structure (Actual)
 ```

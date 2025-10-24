@@ -4,7 +4,6 @@ let currentPage = 0;
 let totalPages = 0;
 let audioElement = null;
 let progressUpdateInterval = null;
-let isPlaying = false;
 
 // DOM Elements
 const librarySection = document.getElementById('library-section');
@@ -55,38 +54,34 @@ document.addEventListener('DOMContentLoaded', () => {
 // Setup Event Listeners
 function setupEventListeners() {
     // Modal controls
-    if (addBookBtn) addBookBtn.addEventListener('click', openUploadModal);
-    if (closeModalBtn) closeModalBtn.addEventListener('click', closeUploadModal);
-    if (uploadModal) {
-        uploadModal.addEventListener('click', (e) => {
-            if (e.target === uploadModal) closeUploadModal();
-        });
-    }
+    addBookBtn.addEventListener('click', openUploadModal);
+    closeModalBtn.addEventListener('click', closeUploadModal);
+    uploadModal.addEventListener('click', (e) => {
+        if (e.target === uploadModal) closeUploadModal();
+    });
 
     // File upload
-    if (fileInput) fileInput.addEventListener('change', handleFileSelect);
-    if (uploadArea) uploadArea.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', handleFileSelect);
+    uploadArea.addEventListener('click', () => fileInput.click());
     
     // Drag and drop
-    if (uploadArea) {
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-        
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-        
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFile(files[0]);
-            }
-        });
-    }
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
     
     // Player controls
     if (playPauseBtn) playPauseBtn.addEventListener('click', togglePlayPause);
@@ -130,21 +125,19 @@ async function loadLibrary() {
 }
 
 function displayLibrary(books) {
-    if (bookGrid) {
-        bookGrid.innerHTML = '';
-        
-        if (books.length === 0) {
-            if (emptyLibrary) emptyLibrary.classList.remove('hidden');
-            return;
-        }
-        
-        if (emptyLibrary) emptyLibrary.classList.add('hidden');
-        
-        books.forEach(book => {
-            const bookCard = createBookCard(book);
-            bookGrid.appendChild(bookCard);
-        });
+    bookGrid.innerHTML = '';
+    
+    if (books.length === 0) {
+        emptyLibrary.classList.remove('hidden');
+        return;
     }
+    
+    emptyLibrary.classList.add('hidden');
+    
+    books.forEach(book => {
+        const bookCard = createBookCard(book);
+        bookGrid.appendChild(bookCard);
+    });
 }
 
 function createBookCard(book) {
@@ -202,13 +195,13 @@ function updateStats(stats) {
 
 // Modal Management
 function openUploadModal() {
-    if (uploadModal) uploadModal.classList.remove('hidden');
-    if (uploadStatus) uploadStatus.classList.add('hidden');
-    if (fileInput) fileInput.value = '';
+    uploadModal.classList.remove('hidden');
+    uploadStatus.classList.add('hidden');
+    fileInput.value = '';
 }
 
 function closeUploadModal() {
-    if (uploadModal) uploadModal.classList.add('hidden');
+    uploadModal.classList.add('hidden');
 }
 
 // File Upload
@@ -220,6 +213,7 @@ function handleFileSelect(e) {
 }
 
 async function handleFile(file) {
+    // Validate file type
     const validExtensions = ['.pdf', '.epub'];
     const fileName = file.name.toLowerCase();
     const isValid = validExtensions.some(ext => fileName.endsWith(ext));
@@ -246,7 +240,7 @@ async function handleFile(file) {
             showUploadStatus(`✓ Added to library: ${data.filename}`, 'success');
             setTimeout(() => {
                 closeUploadModal();
-                loadLibrary();
+                loadLibrary(); // Refresh library
             }, 1500);
         } else {
             showUploadError(data.error || 'Upload failed');
@@ -258,102 +252,34 @@ async function handleFile(file) {
 }
 
 function showUploadStatus(message, type) {
-    if (uploadStatus) {
-        uploadStatus.textContent = message;
-        uploadStatus.className = `upload-status ${type}`;
-        uploadStatus.classList.remove('hidden');
-    }
+    uploadStatus.textContent = message;
+    uploadStatus.className = `upload-status ${type}`;
+    uploadStatus.classList.remove('hidden');
 }
 
 function showUploadError(message) {
     showUploadStatus(message, 'error');
-}
-
-// Book Management
-async function openBook(bookId) {
-    try {
-        const response = await fetch(`/book/${bookId}/open`, {
-            method: 'POST'
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-            currentBook = data.book;
-            totalPages = data.total_pages;
-            currentPage = currentBook.current_page || 0;
+            uploadStatus.classList.add('success');
             
-            showPlayer();
-            updatePlayerInfo();
-            loadPage(currentPage);
+            // Load first page
+            setTimeout(() => {
+                uploadSection.classList.add('hidden');
+                playerSection.classList.remove('hidden');
+                bookTitle.textContent = data.filename;
+                totalPagesSpan.textContent = totalPages;
+                loadPage(0);
+            }, 1000);
+            
         } else {
-            showError(data.error || 'Failed to open book');
+            showError(data.error || 'Upload failed');
         }
-    } catch (error) {
-        console.error('Error opening book:', error);
-        showError('Failed to open book');
-    }
-}
-
-async function deleteBook(bookId) {
-    if (!confirm('Are you sure you want to delete this book?')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/book/${bookId}`, {
-            method: 'DELETE'
-        });
         
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-            loadLibrary();
-        } else {
-            showError(data.error || 'Failed to delete book');
-        }
     } catch (error) {
-        console.error('Error deleting book:', error);
-        showError('Failed to delete book');
+        showError('Upload failed: ' + error.message);
     }
 }
 
-// View Management
-function showLibrary() {
-    if (librarySection) librarySection.classList.remove('hidden');
-    if (playerSection) playerSection.classList.add('hidden');
-    
-    // Stop current audio
-    if (audioElement && !audioElement.paused) {
-        audioElement.pause();
-    }
-    
-    // Refresh library
-    loadLibrary();
-}
-
-function showPlayer() {
-    if (librarySection) librarySection.classList.add('hidden');
-    if (playerSection) playerSection.classList.remove('hidden');
-}
-
-function updatePlayerInfo() {
-    if (currentBook && bookTitle) {
-        bookTitle.textContent = currentBook.filename.replace(/\.(pdf|epub)$/i, '');
-    }
-    if (totalPagesSpan) totalPagesSpan.textContent = totalPages;
-    updatePageInfo();
-}
-
-function updatePageInfo() {
-    if (currentPageSpan) currentPageSpan.textContent = currentPage + 1;
-    if (progressPercentSpan && totalPages > 0) {
-        const percent = Math.round((currentPage / totalPages) * 100);
-        progressPercentSpan.textContent = `${percent}%`;
-    }
-}
-
-// Audio Player
+// Load Page
 async function loadPage(pageNum) {
     if (pageNum < 0 || pageNum >= totalPages) {
         console.log('Page out of range');
@@ -361,9 +287,11 @@ async function loadPage(pageNum) {
     }
     
     currentPage = pageNum;
-    updatePageInfo();
+    currentPageSpan.textContent = pageNum + 1;
     
-    showProcessing(`Loading page ${pageNum + 1}...`);
+    // Show processing status
+    processingStatus.classList.remove('hidden');
+    processingMessage.textContent = `Processing page ${pageNum + 1}...`;
     
     try {
         const response = await fetch(`/process/${pageNum}`);
@@ -371,158 +299,112 @@ async function loadPage(pageNum) {
         
         if (response.ok && data.success) {
             // Update translated text
-            if (translatedText) {
-                translatedText.textContent = data.translated_text;
-            }
+            translatedText.textContent = data.translated_text;
             
             // Load audio
-            if (audioElement) {
-                audioElement.src = data.audio_url;
-                audioElement.load();
-            }
+            audioElement.src = data.audio_url;
+            audioElement.load();
             
-            // Update progress
-            await updateBookProgress(pageNum);
+            // Auto-play
+            playAudio();
             
-            hideProcessing();
+            processingStatus.classList.add('hidden');
+            
         } else {
-            hideProcessing();
-            showError(data.error || 'Failed to load page');
+            showError(data.error || 'Failed to process page');
+            processingStatus.classList.add('hidden');
         }
+        
     } catch (error) {
-        console.error('Error loading page:', error);
-        hideProcessing();
-        showError('Failed to load page');
+        showError('Error loading page: ' + error.message);
+        processingStatus.classList.add('hidden');
     }
 }
 
-async function updateBookProgress(pageNum) {
-    if (!currentBook) return;
-    
-    try {
-        await fetch(`/book/${currentBook.id}/progress`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                current_page: pageNum
-            })
+// Play Audio
+function playAudio() {
+    audioElement.play()
+        .then(() => {
+            playPauseBtn.textContent = '⏸️';
+            playPauseBtn.title = 'Pause';
+        })
+        .catch(err => {
+            console.error('Play error:', err);
+            showError('Failed to play audio');
         });
-    } catch (error) {
-        console.error('Error updating progress:', error);
-    }
 }
 
+// Pause Audio
+function pauseAudio() {
+    audioElement.pause();
+    playPauseBtn.textContent = '▶️';
+    playPauseBtn.title = 'Play';
+}
+
+// Toggle Play/Pause
 function togglePlayPause() {
-    if (!audioElement) return;
-    
     if (audioElement.paused) {
-        audioElement.play();
-        isPlaying = true;
-        updatePlayButton(true);
+        playAudio();
     } else {
-        audioElement.pause();
-        isPlaying = false;
-        updatePlayButton(false);
+        pauseAudio();
     }
 }
 
-function updatePlayButton(playing) {
-    if (playPauseBtn) {
-        const icon = playPauseBtn.querySelector('.play-icon');
-        if (icon) {
-            icon.textContent = playing ? '⏸' : '▶';
-        }
-    }
-}
-
+// Previous Page
 function previousPage() {
     if (currentPage > 0) {
         loadPage(currentPage - 1);
     }
 }
 
+// Next Page
 function nextPage() {
     if (currentPage < totalPages - 1) {
         loadPage(currentPage + 1);
     }
 }
 
+// Handle Audio Ended
 function handleAudioEnded() {
-    isPlaying = false;
-    updatePlayButton(false);
+    playPauseBtn.textContent = '▶️';
+    playPauseBtn.title = 'Play';
     
     // Auto-advance to next page
     if (currentPage < totalPages - 1) {
         setTimeout(() => {
             nextPage();
-        }, 1000);
+        }, 500);
     }
 }
 
-function updateAudioProgress() {
-    if (!audioElement || !currentTimeSpan) return;
-    
-    const currentTime = audioElement.currentTime;
-    const duration = audioElement.duration;
-    
-    if (currentTimeSpan) currentTimeSpan.textContent = formatTime(currentTime);
-    
-    // Update progress ring
-    if (progressRing && duration > 0) {
-        const progress = (currentTime / duration) * 100;
-        const circumference = 2 * Math.PI * 90; // radius = 90
-        const offset = circumference - (progress / 100) * circumference;
-        progressRing.style.strokeDashoffset = offset;
+// Update Progress
+function updateProgress() {
+    if (audioElement.duration) {
+        const progress = (audioElement.currentTime / audioElement.duration) * 100;
+        progressFill.style.width = progress + '%';
+        currentTimeSpan.textContent = formatTime(audioElement.currentTime);
     }
 }
 
-function toggleTextPanel() {
-    if (!translatedText || !textToggle) return;
-    
-    const isVisible = !translatedText.classList.contains('hidden');
-    
-    if (isVisible) {
-        translatedText.classList.add('hidden');
-        textToggle.textContent = 'Show';
-    } else {
-        translatedText.classList.remove('hidden');
-        textToggle.textContent = 'Hide';
-    }
-}
-
-// Utility Functions
+// Format Time
 function formatTime(seconds) {
     if (isNaN(seconds)) return '0:00';
-    
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-function showProcessing(message) {
-    if (processingStatus) processingStatus.classList.remove('hidden');
-    if (processingMessage) processingMessage.textContent = message;
-}
-
-function hideProcessing() {
-    if (processingStatus) processingStatus.classList.add('hidden');
-}
-
+// Show Error
 function showError(message) {
-    console.error('Error:', message);
-    if (errorDisplay) {
-        const errorMessage = errorDisplay.querySelector('#error-message');
-        if (errorMessage) errorMessage.textContent = message;
-        errorDisplay.classList.remove('hidden');
-        
-        // Auto-hide after 5 seconds
-        setTimeout(() => {
-            errorDisplay.classList.add('hidden');
-        }, 5000);
-    }
+    errorDisplay.textContent = '❌ ' + message;
+    errorDisplay.classList.remove('hidden');
+    uploadStatus.textContent = message;
+    uploadStatus.className = 'upload-status error';
+    
+    setTimeout(() => {
+        errorDisplay.classList.add('hidden');
+    }, 5000);
 }
 
-// Global function for delete button (called from HTML)
-window.deleteBook = deleteBook;
+// Log for debugging
+console.log('App.js loaded');

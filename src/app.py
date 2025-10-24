@@ -11,6 +11,7 @@ from werkzeug.utils import secure_filename
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from pipeline import ProcessingPipeline
+from book_library import BookLibrary
 
 
 app = Flask(__name__, 
@@ -26,8 +27,9 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['CACHE_FOLDER'] = CACHE_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
 
-# Global pipeline instance
+# Global instances
 current_pipeline = None
+book_library = None
 
 
 def allowed_file(filename):
@@ -43,8 +45,8 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    """Handle file upload"""
-    global current_pipeline
+    """Handle file upload and add to library"""
+    global current_pipeline, book_library
     
     try:
         # Check if file is present
@@ -68,8 +70,12 @@ def upload_file():
         # Initialize processing pipeline
         current_pipeline = ProcessingPipeline(filepath, app.config['CACHE_FOLDER'])
         
+        # Add to library
+        book_id = book_library.add_book(filename, filepath, current_pipeline.total_pages)
+        
         return jsonify({
             'success': True,
+            'book_id': book_id,
             'filename': filename,
             'total_pages': current_pipeline.total_pages
         })
@@ -80,8 +86,8 @@ def upload_file():
 
 @app.route('/process/<int:page_num>', methods=['GET'])
 def process_page(page_num):
-    """Process a specific page"""
-    global current_pipeline
+    """Process a specific page and update progress"""
+    global current_pipeline, book_library
     
     try:
         if not current_pipeline:
@@ -100,6 +106,13 @@ def process_page(page_num):
             error_msg = page_data.get('error', 'Processing failed')
             print(f"ERROR: {error_msg}")
             return jsonify({'error': error_msg}), 500
+        
+        # Update progress for current book if we can find it
+        if hasattr(current_pipeline, 'book_path'):
+            for book_id, book in book_library.library.items():
+                if book['filepath'] == current_pipeline.book_path:
+                    book_library.update_progress(book_id, page_num)
+                    break
         
         print(f"Page processed successfully!")
         return jsonify({
@@ -193,22 +206,94 @@ def get_status():
     return jsonify(status)
 
 
-@app.route('/books', methods=['GET'])
-def list_books():
-    """List available books in books folder"""
+@app.route('/library', methods=['GET'])
+def get_library():
+    """Get all books in library with progress"""
+    global book_library
+    
     try:
-        books = []
-        if os.path.exists(app.config['UPLOAD_FOLDER']):
-            for filename in os.listdir(app.config['UPLOAD_FOLDER']):
-                if allowed_file(filename):
-                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    books.append({
-                        'filename': filename,
-                        'size': os.path.getsize(filepath)
-                    })
-        return jsonify({'books': books})
+        books = book_library.get_all_books()
+        stats = book_library.get_library_stats()
+        return jsonify({
+            'books': books,
+            'stats': stats
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/book/<book_id>/open', methods=['POST'])
+def open_book(book_id):
+    """Open a book for reading"""
+    global current_pipeline, book_library
+    
+    try:
+        book = book_library.get_book(book_id)
+        if not book:
+            return jsonify({'error': 'Book not found'}), 404
+        
+        # Check if book file exists
+        if not os.path.exists(book['filepath']):
+            return jsonify({'error': 'Book file not found'}), 404
+        
+        # Initialize pipeline for this book
+        current_pipeline = ProcessingPipeline(book['filepath'], app.config['CACHE_FOLDER'])
+        
+        return jsonify({
+            'success': True,
+            'book': book,
+            'total_pages': current_pipeline.total_pages
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/book/<book_id>/progress', methods=['POST'])
+def update_book_progress(book_id):
+    """Update reading progress for a book"""
+    global book_library
+    
+    try:
+        data = request.get_json()
+        current_page = data.get('current_page', 0)
+        
+        success = book_library.update_progress(book_id, current_page)
+        if not success:
+            return jsonify({'error': 'Book not found'}), 404
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/book/<book_id>', methods=['DELETE'])
+def delete_book(book_id):
+    """Delete a book from library"""
+    global book_library, current_pipeline
+    
+    try:
+        # If this is the currently open book, clear pipeline
+        if current_pipeline:
+            current_book = book_library.get_book(book_id)
+            if current_book and current_pipeline.book_path == current_book['filepath']:
+                current_pipeline = None
+        
+        success = book_library.delete_book(book_id)
+        if not success:
+            return jsonify({'error': 'Book not found'}), 404
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/books', methods=['GET'])
+def list_books():
+    """Legacy endpoint - redirect to library"""
+    return get_library()
 
 
 @app.route('/health', methods=['GET'])
@@ -221,6 +306,9 @@ if __name__ == '__main__':
     # Create necessary directories
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     os.makedirs(CACHE_FOLDER, exist_ok=True)
+    
+    # Initialize book library
+    book_library = BookLibrary(CACHE_FOLDER)
     
     print("=" * 60)
     print("AI-Powered Audiobook Translator")
