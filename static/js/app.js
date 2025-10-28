@@ -209,28 +209,38 @@ async function loadPage(pageNum) {
         const data = await response.json();
         
         if (response.ok && data.success) {
-            // Update translated text
+            // Update translated text FIRST
             translatedText.textContent = data.translated_text;
             
             // Load audio
             audioElement.src = data.audio_url;
             audioElement.load();
             
-            // Auto-play only if user has interacted (required for iOS)
-            if (hasUserInteracted) {
-                playAudio();
-            } else {
-                // On iOS, show play button and wait for user interaction
-                if (isIOS) {
-                    playPauseBtn.textContent = '▶️';
-                    playPauseBtn.title = 'Tap to Play';
-                    console.log('iOS: Waiting for user interaction to play');
-                } else {
-                    playAudio();
-                }
-            }
-            
-            processingStatus.classList.add('hidden');
+            // Wait for DOM to update and audio metadata to load before auto-play
+            // This ensures users see the text before hearing audio
+            audioElement.addEventListener('loadedmetadata', function autoPlayHandler() {
+                // Remove listener after first trigger to prevent duplicate calls
+                audioElement.removeEventListener('loadedmetadata', autoPlayHandler);
+                
+                // Small delay to ensure text is visibly rendered (fixes Issue #2)
+                setTimeout(() => {
+                    // Auto-play only if user has interacted (required for iOS)
+                    if (hasUserInteracted) {
+                        playAudio();
+                    } else {
+                        // On iOS, show play button and wait for user interaction
+                        if (isIOS) {
+                            playPauseBtn.textContent = '▶️';
+                            playPauseBtn.title = 'Tap to Play';
+                            console.log('iOS: Waiting for user interaction to play');
+                        } else {
+                            playAudio();
+                        }
+                    }
+                    
+                    processingStatus.classList.add('hidden');
+                }, 100); // 100ms delay ensures text is visible before audio starts
+            }, { once: true });
             
         } else {
             showError(data.error || 'Failed to process page');
