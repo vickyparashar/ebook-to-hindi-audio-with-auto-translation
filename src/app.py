@@ -18,8 +18,9 @@ app = Flask(__name__,
             static_folder='../static')
 
 # Configuration
-UPLOAD_FOLDER = 'books'
-CACHE_FOLDER = 'cache'
+# Use /tmp on Render (ephemeral filesystem) or local directories
+UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/tmp/books') if os.environ.get('RENDER') else 'books'
+CACHE_FOLDER = os.environ.get('CACHE_FOLDER', '/tmp/cache') if os.environ.get('RENDER') else 'cache'
 ALLOWED_EXTENSIONS = {'pdf', 'epub', 'txt'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -273,12 +274,16 @@ if __name__ == '__main__':
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     os.makedirs(CACHE_FOLDER, exist_ok=True)
     
+    # Get port from environment variable (Render sets this)
+    port = int(os.environ.get('PORT', 5000))
+    
     print("=" * 60)
     print("AI-Powered Audiobook Translator")
     print("=" * 60)
-    print(f"Server starting at http://localhost:5000")
+    print(f"Server starting on port {port}")
     print(f"Upload folder: {UPLOAD_FOLDER}")
     print(f"Cache folder: {CACHE_FOLDER}")
+    print(f"Environment: {'Render' if os.environ.get('RENDER') else 'Local'}")
     print("=" * 60)
     
-    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
+    app.run(debug=False, host='0.0.0.0', port=port, use_reloader=False)
