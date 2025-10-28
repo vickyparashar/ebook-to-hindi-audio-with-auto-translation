@@ -155,6 +155,8 @@ header h1 {
     font-weight: 600;
     display: block;
     margin-top: 5px;
+    text-align: center;
+    width: 100%;
 }
 
 .audio-player {
@@ -565,13 +567,19 @@ header h1 {
         font-weight: 700 !important;
         margin-top: 10px !important;
         margin-bottom: 10px !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
         display: block !important;
         text-align: center !important;
         padding: 5px 0 !important;
+        width: 100% !important;
+        float: none !important;
     }
     
     .book-info {
         margin-bottom: 20px;
+        display: block !important;
+        text-align: center !important;
     }
     
     .book-info h2 {
