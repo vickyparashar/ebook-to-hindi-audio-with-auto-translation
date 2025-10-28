@@ -16,6 +16,8 @@ const playPauseBtn = document.getElementById('play-pause-btn');
 const prevBtn = document.getElementById('prev-btn');
 const nextBtn = document.getElementById('next-btn');
 const volumeSlider = document.getElementById('volume-slider');
+const speedSlider = document.getElementById('speed-slider');
+const speedValue = document.getElementById('speed-value');
 
 const currentPageSpan = document.getElementById('current-page');
 const totalPagesSpan = document.getElementById('total-pages');
@@ -66,6 +68,11 @@ function setupEventListeners() {
     volumeSlider.addEventListener('input', (e) => {
         audioElement.volume = e.target.value / 100;
     });
+    speedSlider.addEventListener('input', (e) => {
+        const speed = e.target.value / 100;
+        audioElement.playbackRate = speed;
+        speedValue.textContent = speed.toFixed(1) + 'x';
+    });
     
     // Audio events
     audioElement.addEventListener('timeupdate', updateProgress);
@@ -86,13 +93,13 @@ function handleFileSelect(e) {
 // File Upload Handler
 async function handleFile(file) {
     // Validate file type
-    const validTypes = ['application/pdf', 'application/epub+zip'];
-    const validExtensions = ['.pdf', '.epub'];
+    const validTypes = ['application/pdf', 'application/epub+zip', 'text/plain'];
+    const validExtensions = ['.pdf', '.epub', '.txt'];
     const fileName = file.name.toLowerCase();
     const isValid = validExtensions.some(ext => fileName.endsWith(ext));
     
     if (!isValid) {
-        showError('Invalid file type. Please upload PDF or EPUB files only.');
+        showError('Invalid file type. Please upload PDF, EPUB, or TXT files only.');
         return;
     }
     

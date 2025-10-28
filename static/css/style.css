@@ -215,6 +215,30 @@ header h1 {
     cursor: pointer;
 }
 
+.speed-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 20px;
+}
+
+.speed-icon {
+    font-size: 1.3em;
+}
+
+.speed-slider {
+    width: 100px;
+    cursor: pointer;
+}
+
+.speed-value {
+    color: white;
+    font-weight: bold;
+    font-size: 0.9em;
+    min-width: 45px;
+    text-align: center;
+}
+
 /* Text Display */
 .text-display {
     margin-top: 20px;

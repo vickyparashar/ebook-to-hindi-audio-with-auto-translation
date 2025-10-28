@@ -20,7 +20,7 @@ app = Flask(__name__,
 # Configuration
 UPLOAD_FOLDER = 'books'
 CACHE_FOLDER = 'cache'
-ALLOWED_EXTENSIONS = {'pdf', 'epub'}
+ALLOWED_EXTENSIONS = {'pdf', 'epub', 'txt'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['CACHE_FOLDER'] = CACHE_FOLDER
@@ -57,7 +57,7 @@ def upload_file():
             return jsonify({'error': 'No file selected'}), 400
         
         if not allowed_file(file.filename):
-            return jsonify({'error': 'Invalid file type. Only PDF and EPUB allowed'}), 400
+            return jsonify({'error': 'Invalid file type. Only PDF, EPUB, and TXT allowed'}), 400
         
         # Save file
         filename = secure_filename(file.filename)

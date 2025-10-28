@@ -23,6 +23,8 @@ class BookParser:
             return 'pdf'
         elif ext == '.epub':
             return 'epub'
+        elif ext == '.txt':
+            return 'txt'
         else:
             raise ValueError(f"Unsupported file type: {ext}")
     
@@ -32,6 +34,8 @@ class BookParser:
             return self._get_pdf_pages()
         elif self.file_type == 'epub':
             return self._get_epub_chapters()
+        elif self.file_type == 'txt':
+            return self._get_txt_pages()
     
     def extract_page(self, page_num):
         """Extract text from specific page/chapter"""
@@ -39,6 +43,8 @@ class BookParser:
             return self._extract_pdf_page(page_num)
         elif self.file_type == 'epub':
             return self._extract_epub_chapter(page_num)
+        elif self.file_type == 'txt':
+            return self._extract_txt_page(page_num)
     
     def _get_pdf_pages(self):
         """Get number of pages in PDF"""
@@ -88,6 +94,64 @@ class BookParser:
         except Exception as e:
             raise Exception(f"Error extracting EPUB chapter {chapter_num}: {str(e)}")
     
+    def _get_txt_pages(self):
+        """Get number of pages in TXT file (split by paragraphs or line count)"""
+        try:
+            with open(self.file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            
+            # Split by double newlines (paragraphs) or every ~500 words
+            paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+            
+            # If no paragraphs, split by lines
+            if len(paragraphs) == 0:
+                lines = [line.strip() for line in content.split('\n') if line.strip()]
+                # Group lines into pages of ~20 lines each
+                pages = []
+                for i in range(0, len(lines), 20):
+                    pages.append('\n'.join(lines[i:i+20]))
+                return len(pages) if pages else 1
+            
+            # Group small paragraphs into pages
+            pages = []
+            current_page = []
+            word_count = 0
+            
+            for para in paragraphs:
+                para_words = len(para.split())
+                if word_count + para_words > 500 and current_page:
+                    pages.append('\n\n'.join(current_page))
+                    current_page = [para]
+                    word_count = para_words
+                else:
+                    current_page.append(para)
+                    word_count += para_words
+            
+            # Add last page
+            if current_page:
+                pages.append('\n\n'.join(current_page))
+            
+            # Store pages for later extraction
+            self._txt_pages = pages
+            return len(pages) if pages else 1
+            
+        except Exception as e:
+            raise Exception(f"Error reading TXT file: {str(e)}")
+    
+    def _extract_txt_page(self, page_num):
+        """Extract text from specific TXT page"""
+        try:
+            # Ensure pages are loaded
+            if not hasattr(self, '_txt_pages'):
+                self._get_txt_pages()
+            
+            if page_num >= len(self._txt_pages):
+                raise ValueError(f"Page {page_num} out of range")
+            
+            return self._txt_pages[page_num]
+        except Exception as e:
+            raise Exception(f"Error extracting TXT page {page_num}: {str(e)}")
+    
     def extract_all_pages(self):
         """Extract text from all pages/chapters"""
         total_pages = self.get_total_pages()
@@ -99,6 +163,7 @@ class BookParser:
                 'text': text
             })
         return pages
+
 
 
 def parse_book(file_path):

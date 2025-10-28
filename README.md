@@ -1,16 +1,20 @@
 # 🎧 AI-Powered Audiobook Translator
 
-Convert PDF and EPUB files into Hindi audiobooks with real-time translation and streaming playback.
+Convert PDF, EPUB, and TXT files into Hindi audiobooks with real-time translation and streaming playback.
 
 ## ✨ Features
 
-- 📚 **Multi-format Support**: PDF and EPUB files
+- 📚 **Multi-format Support**: PDF, EPUB, and TXT files
 - 🌐 **English to Hindi Translation**: Automatic page-by-page translation
 - 🎵 **Text-to-Speech**: Convert translated text to clear Hindi audio
+- ▶️ **Auto-Play**: Audio starts automatically when page loads
+- ⏭️ **Auto-Advance**: Automatically moves to next page when audio ends
+- ⚡ **Playback Speed Control**: Adjust reading speed from 0.5x to 2.0x
 - ⚡ **Streaming Playback**: Start listening immediately, no waiting for full conversion
 - 🔄 **Async Processing**: Background preparation of upcoming pages
 - 🎨 **Modern UI**: Beautiful, intuitive mini player interface
 - 💾 **Smart Caching**: Resume where you left off
+- 🙌 **Hands-Free Experience**: Seamless continuous playback across all pages
 
 ## 🚀 Quick Start
 

@@ -10,7 +10,7 @@
     <div class="container">
         <header>
             <h1>🎧 AI Audiobook Translator</h1>
-            <p class="subtitle">Convert PDF/EPUB to Hindi Audiobooks</p>
+            <p class="subtitle">Convert PDF/EPUB/TXT to Hindi Audiobooks</p>
         </header>
 
         <!-- Upload Section -->
@@ -19,8 +19,8 @@
                 <div class="upload-icon">📚</div>
                 <h2>Drop your book here</h2>
                 <p>or click to browse</p>
-                <p class="file-types">Supported: PDF, EPUB</p>
-                <input type="file" id="file-input" accept=".pdf,.epub" hidden>
+                <p class="file-types">Supported: PDF, EPUB, TXT</p>
+                <input type="file" id="file-input" accept=".pdf,.epub,.txt" hidden>
             </div>
             <div id="upload-status" class="upload-status hidden"></div>
         </div>
@@ -53,6 +53,11 @@
                         <div class="volume-control">
                             <span class="volume-icon">🔊</span>
                             <input type="range" id="volume-slider" min="0" max="100" value="90" class="volume-slider">
+                        </div>
+                        <div class="speed-control">
+                            <span class="speed-icon">⚡</span>
+                            <input type="range" id="speed-slider" min="50" max="200" value="100" step="10" class="speed-slider">
+                            <span id="speed-value" class="speed-value">1.0x</span>
                         </div>
                     </div>
                 </div>

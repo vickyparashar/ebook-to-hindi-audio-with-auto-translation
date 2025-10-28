@@ -2,7 +2,7 @@
 
 ## Project Status: ✅ Production Ready (80/80 Tests Passing)
 
-This Python application translates PDF/EPUB files from English to Hindi and streams them as audiobooks. The system uses async processing to prefetch 3 pages ahead while the current page plays.
+This Python application translates PDF/EPUB/TXT files from English to Hindi and streams them as audiobooks. The system uses async processing to prefetch 3 pages ahead while the current page plays, with auto-play and auto-advance features for hands-free listening.
 
 ## Quick Start for AI Agents
 
@@ -13,11 +13,12 @@ python src/app.py  # Starts Flask on http://localhost:5000
 
 **Key Architecture Points:**
 - `src/app.py` - Flask server (no auto-reloader to preserve state)
-- `src/parser.py` - Extracts text from PDF/EPUB (0-indexed pages)
+- `src/parser.py` - Extracts text from PDF/EPUB/TXT (0-indexed pages, smart TXT pagination)
 - `src/translator.py` - English→Hindi with custom SSL bypass & caching
 - `src/tts.py` - gTTS audio generation with MD5-based filenames
 - `src/pipeline.py` - ThreadPoolExecutor for async prefetching
 - `cache/` - Stores `translations.json` and `{md5hash}.mp3` files
+- `static/js/app.js` - Vanilla JS with auto-play/auto-advance logic
 
 ## Critical Implementation Details
 
@@ -71,6 +72,19 @@ audio_path = os.path.join(self.cache_dir, f"{cache_key}.mp3")
 ```
 **Why:** Files named by content hash (e.g., `c460d0bae6ed6a67da99df8f8ac0f76d.mp3`) for deduplication.
 
+### 7. Text File Smart Pagination (src/parser.py)
+```python
+# Split by paragraphs (double newlines) or ~500 word chunks
+paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+# Group small paragraphs into pages
+for para in paragraphs:
+    para_words = len(para.split())
+    if word_count + para_words > 500 and current_page:
+        pages.append('\n\n'.join(current_page))
+        current_page = [para]
+```
+**Why:** TXT files lack native page structure. Smart pagination ensures reasonable audio lengths and natural breaks.
+
 ## Current Stack (All Dependencies Working)
 - **Flask 3.0.0** - Web server (no auto-reload)
 - **PyPDF2 3.0.1** - PDF parsing (0-indexed: `reader.pages[page_num]`)
@@ -83,15 +97,17 @@ audio_path = os.path.join(self.cache_dir, f"{cache_key}.mp3")
 - **Gradient Purple Theme** - CSS with animations, responsive design
 - **Drag-drop upload** - HTML5 File API with visual feedback
 - **Audio Element** - Native HTML5 `<audio>` for streaming MP3 playback
-- **Auto-advance** - `audioElement.addEventListener('ended', nextPage)`
+- **Auto-Play** - `playAudio()` called automatically in `loadPage()` function
+- **Auto-Advance** - `audioElement.addEventListener('ended', nextPage)` with 500ms delay
+- **Speed Control** - `audioElement.playbackRate` adjustable from 0.5x to 2.0x
 
 ### Project Structure (Recommended)
 ```
 ai-translate/
-├── books/              # Input PDF/EPUB files
+├── books/              # Input PDF/EPUB/TXT files
 ├── cache/             # Translated text and audio cache
 ├── src/
-│   ├── parser.py      # PDF/EPUB text extraction
+│   ├── parser.py      # PDF/EPUB/TXT text extraction
 │   ├── translator.py  # Translation service wrapper
 │   ├── tts.py         # Text-to-speech engine
 │   ├── pipeline.py    # Async processing coordinator
@@ -112,6 +128,16 @@ python test_audio_debug.py       # Test pipeline components
 ```
 
 **Test File:** "The Alchemist mini.pdf" in `books/` folder (7 pages)
+
+### Testing New Features
+```bash
+python test_parser_features.py  # Test TXT parsing & existing formats
+python test_features.py          # Integration tests (server must be running)
+```
+
+**Sample Files:**
+- `books/The Alchemist mini.pdf` - 7 pages (PDF)
+- `books/test_story.txt` - Sample text file for TXT testing
 
 ### Smoke Testing with Playwright MCP (80/80 PASSING ✅)
 **Test execution:** Use Playwright MCP browser tools
@@ -139,11 +165,11 @@ await page.waitForTimeout(5000);  // Wait for processing
 ## Project Structure (Actual)
 ```
 ai-translate/
-├── books/              # Input: The Alchemist mini.pdf (7 pages)
+├── books/              # Input: The Alchemist mini.pdf (7 pages), test_story.txt
 ├── cache/              # Output: translations.json + *.mp3 files
 ├── src/
 │   ├── app.py         # Flask routes (/upload, /process/<n>, /audio/<n>)
-│   ├── parser.py      # BookParser class (PDF/EPUB)
+│   ├── parser.py      # BookParser class (PDF/EPUB/TXT)
 │   ├── translator.py  # TranslationService with SSL bypass
 │   ├── tts.py         # TTSEngine using gTTS
 │   └── pipeline.py    # ProcessingPipeline (ThreadPoolExecutor)
@@ -152,8 +178,10 @@ ai-translate/
 │   └── js/app.js      # Player controls (~270 lines)
 ├── templates/
 │   └── index.html     # Single-page app
-├── atomic-smoke-tests.md   # 80 test cases (all passing)
-└── requirements.txt        # 7 dependencies (no API keys)
+├── test_parser_features.py  # Parser unit tests
+├── test_features.py         # Integration tests
+├── atomic-smoke-tests.md    # 80 test cases (all passing)
+└── requirements.txt         # 7 dependencies (no API keys)
 ```
 
 ## Performance Considerations
@@ -164,4 +192,6 @@ ai-translate/
 
 ## Reference Files
 - `prd.md`: Full product requirements and user experience goals
-- `books/`: Contains sample file "The Alchemist mini.pdf" for testing
+- `FEATURE_IMPLEMENTATION.md`: Detailed docs on TXT support, auto-play, auto-advance
+- `USAGE_GUIDE.md`: User-friendly how-to guide for new features
+- `books/`: Sample files - "The Alchemist mini.pdf" (7 pages), "test_story.txt"
