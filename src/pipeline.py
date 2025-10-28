@@ -55,14 +55,17 @@ class ProcessingPipeline:
             
             # Extract text
             text = self.parser.extract_page(page_num)
+            
+            # Handle empty pages gracefully
             if not text or not text.strip():
-                raise ValueError(f"Page {page_num} has no text")
-            
-            print(f"Page {page_num + 1}: Extracted {len(text)} characters")
-            
-            # Translate to Hindi
-            translated_text = self.translator.translate(text)
-            print(f"Page {page_num + 1}: Translated to Hindi ({len(translated_text)} chars)")
+                print(f"Page {page_num + 1}: Empty page detected, using placeholder")
+                text = "Empty page"
+                translated_text = "खाली पृष्ठ"  # "Empty page" in Hindi
+            else:
+                print(f"Page {page_num + 1}: Extracted {len(text)} characters")
+                # Translate to Hindi
+                translated_text = self.translator.translate(text)
+                print(f"Page {page_num + 1}: Translated to Hindi ({len(translated_text)} chars)")
             
             # Generate audio
             audio_path = self.tts.generate_audio(translated_text, page_num)

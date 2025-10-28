@@ -38,7 +38,31 @@ class TTSEngine:
             Path to generated audio file (for backward compatibility)
         """
         if not text or not text.strip():
-            raise ValueError("Text cannot be empty")
+            # For empty text, create a silent 1-second audio file
+            print(f"Empty text detected, generating silent audio")
+            cache_key = self._get_cache_key("__EMPTY__")
+            audio_path = self._get_audio_path(cache_key)
+            
+            # Check if silent audio already exists
+            if cache_key not in self.memory_cache and not os.path.exists(audio_path):
+                # Generate minimal silent audio (1 second of silence)
+                tts = gTTS(text=".", lang='hi', slow=False)
+                audio_fp = BytesIO()
+                tts.write_to_fp(audio_fp)
+                audio_data = audio_fp.getvalue()
+                
+                # Save to disk
+                with open(audio_path, 'wb') as f:
+                    f.write(audio_data)
+                
+                # Store in memory cache
+                self.memory_cache[cache_key] = audio_data
+            elif os.path.exists(audio_path) and cache_key not in self.memory_cache:
+                # Load existing silent audio into memory
+                with open(audio_path, 'rb') as f:
+                    self.memory_cache[cache_key] = f.read()
+            
+            return audio_path
         
         # Check cache
         cache_key = self._get_cache_key(text)

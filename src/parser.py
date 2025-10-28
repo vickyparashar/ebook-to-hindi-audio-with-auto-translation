@@ -95,10 +95,16 @@ class BookParser:
             raise Exception(f"Error extracting EPUB chapter {chapter_num}: {str(e)}")
     
     def _get_txt_pages(self):
-        """Get number of pages in TXT file (split into small chunks for fast processing)"""
+        """Get number of pages in TXT file (smart pagination)"""
         try:
             with open(self.file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
+            
+            # Handle empty or whitespace-only files
+            content = content.strip()
+            if not content:
+                self._txt_pages = [""]  # Empty page for empty files
+                return 1
             
             # Break into small pages (200-250 words max for faster processing)
             MAX_WORDS_PER_PAGE = 250
