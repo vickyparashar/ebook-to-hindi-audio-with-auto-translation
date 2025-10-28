@@ -95,37 +95,55 @@ class BookParser:
             raise Exception(f"Error extracting EPUB chapter {chapter_num}: {str(e)}")
     
     def _get_txt_pages(self):
-        """Get number of pages in TXT file (split by paragraphs or line count)"""
+        """Get number of pages in TXT file (split into small chunks for fast processing)"""
         try:
             with open(self.file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
             
-            # Split by double newlines (paragraphs) or every ~500 words
+            # Split by double newlines (paragraphs) or single newlines
             paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
             
-            # If no paragraphs, split by lines
+            # If no paragraphs, split by single lines
             if len(paragraphs) == 0:
-                lines = [line.strip() for line in content.split('\n') if line.strip()]
-                # Group lines into pages of ~20 lines each
-                pages = []
-                for i in range(0, len(lines), 20):
-                    pages.append('\n'.join(lines[i:i+20]))
-                return len(pages) if pages else 1
+                paragraphs = [line.strip() for line in content.split('\n') if line.strip()]
             
-            # Group small paragraphs into pages
+            # Break into small pages (200-250 words max for faster processing)
+            MAX_WORDS_PER_PAGE = 250
             pages = []
             current_page = []
             word_count = 0
             
             for para in paragraphs:
                 para_words = len(para.split())
-                if word_count + para_words > 500 and current_page:
-                    pages.append('\n\n'.join(current_page))
-                    current_page = [para]
-                    word_count = para_words
+                
+                # If single paragraph is too large, split it further
+                if para_words > MAX_WORDS_PER_PAGE:
+                    # Split long paragraph by sentences
+                    sentences = para.replace('! ', '!|').replace('? ', '?|').replace('. ', '.|').split('|')
+                    for sentence in sentences:
+                        sentence = sentence.strip()
+                        if not sentence:
+                            continue
+                        sentence_words = len(sentence.split())
+                        
+                        if word_count + sentence_words > MAX_WORDS_PER_PAGE and current_page:
+                            # Save current page
+                            pages.append(' '.join(current_page))
+                            current_page = [sentence]
+                            word_count = sentence_words
+                        else:
+                            current_page.append(sentence)
+                            word_count += sentence_words
                 else:
-                    current_page.append(para)
-                    word_count += para_words
+                    # Normal paragraph processing
+                    if word_count + para_words > MAX_WORDS_PER_PAGE and current_page:
+                        # Save current page
+                        pages.append('\n\n'.join(current_page))
+                        current_page = [para]
+                        word_count = para_words
+                    else:
+                        current_page.append(para)
+                        word_count += para_words
             
             # Add last page
             if current_page:

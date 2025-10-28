@@ -15,12 +15,13 @@ python src/app.py  # Starts Flask on http://localhost:5000
 
 **Key Architecture Points:**
 - `src/app.py` - Flask server (no auto-reloader to preserve state)
-- `src/parser.py` - Extracts text from PDF/EPUB/TXT (0-indexed pages, smart TXT pagination)
+- `src/parser.py` - Extracts text from PDF/EPUB/TXT (0-indexed pages, **250-word max per TXT page**)
 - `src/translator.py` - English→Hindi with custom SSL bypass & caching
 - `src/tts.py` - gTTS audio generation with MD5-based filenames
 - `src/pipeline.py` - ThreadPoolExecutor for async prefetching
 - `cache/` - Stores `translations.json` and `{md5hash}.mp3` files
 - `static/js/app.js` - Vanilla JS with auto-play/auto-advance logic
+- **Mobile-ready:** Viewport meta tag + responsive CSS (@media queries)
 
 ## Critical Implementation Details
 
@@ -76,16 +77,13 @@ audio_path = os.path.join(self.cache_dir, f"{cache_key}.mp3")
 
 ### 7. Text File Smart Pagination (src/parser.py)
 ```python
-# Split by paragraphs (double newlines) or ~500 word chunks
-paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
-# Group small paragraphs into pages
-for para in paragraphs:
-    para_words = len(para.split())
-    if word_count + para_words > 500 and current_page:
-        pages.append('\n\n'.join(current_page))
-        current_page = [para]
+# Split by paragraphs (double newlines) or sentences
+# Break into small pages (200-250 words max for faster processing)
+MAX_WORDS_PER_PAGE = 250
+# If single paragraph is too large, split it by sentences
+sentences = para.replace('! ', '!|').replace('? ', '?|').replace('. ', '.|').split('|')
 ```
-**Why:** TXT files lack native page structure. Smart pagination ensures reasonable audio lengths and natural breaks.
+**Why:** TXT files lack native page structure. Smart pagination with **250-word maximum** ensures fast processing, reasonable audio lengths, and natural breaks. Large paragraphs are automatically split by sentences to prevent huge pages that slow down translation/TTS.
 
 ### 8. Playback Speed Control (static/js/app.js, templates/index.html)
 ```javascript
