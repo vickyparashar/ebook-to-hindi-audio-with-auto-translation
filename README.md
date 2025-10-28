@@ -17,7 +17,8 @@ Convert PDF, EPUB, and TXT files into Hindi audiobooks with real-time translatio
 - 🔄 **Async Processing**: Background preparation of upcoming pages (3 pages ahead)
 - 🎨 **Modern UI**: Beautiful gradient purple theme with smooth animations
 - 📱 **Mobile-Ready**: Full iOS Safari support with touch optimizations
-- 💾 **Smart Caching**: Resume where you left off with translation & audio caching
+- � **PWA Installable**: Add to home screen for native app experience
+- �💾 **Smart Caching**: Resume where you left off with translation & audio caching
 - 🙌 **Hands-Free Experience**: Seamless continuous playback across all pages
 - ☁️ **Cloud Deployed**: Production-ready on Render.com with auto-deployment
 
@@ -90,6 +91,22 @@ All dependencies are **free and open-source** with **no API keys required**:
 
 ### iOS Safari Users
 On iPhone/iPad, tap the play button (▶️) on the first page to enable audio. Subsequent pages will auto-play automatically.
+
+### 📱 Install as Progressive Web App (PWA)
+Add the app to your iPhone/iPad home screen for a native-like experience!
+
+**Installation Steps:**
+1. Open https://ebook-to-hindi-audio-with-auto.onrender.com/ in **Safari** (not Chrome)
+2. Tap the **Share** button (square with arrow pointing up)
+3. Scroll down and tap **"Add to Home Screen"**
+4. Tap **"Add"** in the top right corner
+5. Find the app icon on your home screen with the purple headphone logo
+
+**Benefits:**
+- ✨ Full-screen experience (no Safari toolbars)
+- 🚀 Launches instantly like a native app
+- 📱 Beautiful app icon on home screen
+- 💾 Offline caching for faster loading
 
 ## 📁 Project Structure
 

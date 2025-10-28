@@ -145,6 +145,56 @@ if (hasUserInteracted) {
 ```
 **Why:** iOS Safari blocks `audio.play()` without prior user gesture. Solution: detect iOS, track any user interaction, then enable autoplay. First page requires manual play tap, subsequent pages auto-play.
 
+### 11. Progressive Web App (PWA) Support (static/, templates/)
+```javascript
+// Service Worker Registration (static/js/app.js)
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js')
+        .then(reg => console.log('Service Worker registered:', reg.scope))
+        .catch(err => console.log('Registration failed:', err));
+}
+
+// Service Worker Caching Strategy (static/sw.js)
+const CACHE_NAME = 'audiobook-translator-v1';
+const urlsToCache = ['/', '/static/css/style.css', '/static/js/app.js', '/static/manifest.json'];
+
+self.addEventListener('install', event => {
+    event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache)));
+});
+
+self.addEventListener('fetch', event => {
+    event.respondWith(
+        caches.match(event.request).then(response => response || fetch(event.request))
+    );
+});
+```
+
+```json
+// PWA Manifest (static/manifest.json)
+{
+  "name": "AI-Powered Audiobook Translator",
+  "short_name": "AudioBook",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#667eea",
+  "icons": [
+    {"src": "/static/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml"},
+    {"src": "/static/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml"}
+  ]
+}
+```
+
+```html
+<!-- PWA Meta Tags (templates/index.html) -->
+<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.svg') }}">
+<meta name="theme-color" content="#667eea">
+```
+
+**Why:** PWA enables "Add to Home Screen" on iPhone/iPad for native-like experience. Service worker provides offline caching and faster loading. SVG icons used for scalability and small file size. Standalone display mode removes Safari UI for immersive experience.
+
+**Installation:** Open in Safari → Share → Add to Home Screen → Purple headphone icon appears on home screen.
+
 ## Current Stack (All Dependencies Working)
 - **Flask 3.0.0** - Web server (no auto-reload)
 - **Gunicorn 21.2.0** - Production WSGI server (Render deployment)
@@ -161,6 +211,7 @@ if (hasUserInteracted) {
 - **Auto-Play** - `playAudio()` called automatically in `loadPage()` function
 - **Auto-Advance** - `audioElement.addEventListener('ended', nextPage)` with 500ms delay
 - **Speed Control** - `audioElement.playbackRate` adjustable from 0.5x to 2.0x
+- **PWA Support** - Service worker, manifest.json, installable on iPhone/iPad
 
 ### Project Structure (Recommended)
 ```
@@ -253,6 +304,7 @@ await page.waitForTimeout(5000);  // Wait for processing
 8. **iOS Autoplay Restriction**: Safari requires user gesture before audio.play() - track `hasUserInteracted` flag
 9. **Gunicorn Timeout**: Set to 120s to handle TTS retry delays (default 30s causes timeouts)
 10. **Memory-based Audio**: On Render, serve audio from memory cache via `BytesIO` (disk may not persist)
+11. **PWA Icons**: SVG icons used in manifest.json for scalability - supported by modern iOS Safari (13+)
 
 ## Project Structure (Actual)
 ```
@@ -267,9 +319,13 @@ ai-translate/
 │   └── pipeline.py    # ProcessingPipeline (ThreadPoolExecutor)
 ├── static/
 │   ├── css/style.css  # Gradient purple theme
-│   └── js/app.js      # Player controls (~270 lines)
+│   ├── js/app.js      # Player controls (~270 lines)
+│   ├── manifest.json  # PWA manifest for installability
+│   ├── sw.js          # Service worker for offline caching
+│   ├── icon-192.svg   # PWA app icon (192x192)
+│   └── icon-512.svg   # PWA app icon (512x512)
 ├── templates/
-│   └── index.html     # Single-page app
+│   └── index.html     # Single-page app with PWA meta tags
 ├── test_parser_features.py  # Parser unit tests
 ├── test_features.py         # Integration tests
 ├── atomic-smoke-tests.md    # 80 test cases (all passing)

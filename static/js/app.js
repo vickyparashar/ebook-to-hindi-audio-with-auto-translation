@@ -45,6 +45,18 @@ document.addEventListener('DOMContentLoaded', () => {
     isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     
     setupEventListeners();
+    
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js')
+            .then(registration => {
+                console.log('Service Worker registered:', registration.scope);
+            })
+            .catch(error => {
+                console.log('Service Worker registration failed:', error);
+            });
+    }
+    
     console.log('App initialized', isIOS ? '(iOS detected)' : '');
 });
 
