@@ -264,101 +264,50 @@ python test_features.py          # Integration tests (server must be running)
 - `books/The Alchemist mini.pdf` - 7 pages (PDF)
 - `books/test_story.txt` - Sample text file for TXT testing
 
-### Comprehensive Testing with Playwright (32/32 PASSING ✅)
-**Latest Results:** See `COMPREHENSIVE_TEST_REPORT.md` for full details
+## Frontend Architecture (templates/index.html, static/)
+- **Vanilla JavaScript** - No frameworks, ~270 lines in `app.js`
+- **Gradient Purple Theme** - CSS with animations, responsive design
+- **Drag-drop upload** - HTML5 File API with visual feedback
+- **Audio Element** - Native HTML5 `<audio>` for streaming MP3 playback
+- **Auto-Play** - `playAudio()` called automatically in `loadPage()` function
+- **Auto-Advance** - `audioElement.addEventListener('ended', nextPage)` with 500ms delay
+- **Speed Control** - `audioElement.playbackRate` adjustable from 0.5x to 2.0x
+- **PWA Support** - Service worker, manifest.json, installable on iPhone/iPad
 
-**Test execution:** Use Playwright MCP browser tools
-```javascript
-// Upload and test file
-await page.goto('http://localhost:5000/');
-await page.getByText('📚 Drop your book here').click();
-await fileChooser.setFiles(['books/test_story.txt']);
-await page.waitForTimeout(15000);  // Wait for processing
-
-// Verify auto-play
-const pauseBtn = await page.getByRole('button', { name: '⏸️' });
-// If pause button visible, auto-play is working
-
-// Test speed control
-await page.locator('#speed-slider').click();
-const speedDisplay = await page.locator('#speed-value').textContent();
-// Should show "1.0x", "1.5x", etc.
-```
-
-**Test Coverage:**
-- Atomic: 7 tests (parsers, components) - 100% pass
-- Minor: 15 tests (feature integration) - 100% pass  
-- Major: 10 tests (end-to-end workflows) - 100% pass
-
-### Smoke Testing with Playwright MCP (Legacy - 80/80 PASSING ✅)
-**Test execution:** Use Playwright MCP browser tools
-```javascript
-// Example test flow
-await page.goto('http://localhost:5000/');
-await page.getByText('📚 Drop your book here').click();
-await fileChooser.setFiles(['books/The Alchemist mini.pdf']);
-await page.waitForTimeout(5000);  // Wait for processing
-```
-
-**Status tracking:** Update `atomic-smoke-tests.md` after each test
-- 14 categories: Server, Upload, Parsing, Translation, TTS, Player, etc.
-- All 80 tests currently passing
-- Re-run tests after any core component changes
-
-## Known Fixes & Gotchas
-
-1. **Windows Unicode Console**: Removed emoji from server startup (`print("AI-Powered...")` not `print("🎧 AI-Powered...")`)
-2. **pyttsx3 Replaced**: Windows compatibility issues led to gTTS adoption (internet required but reliable)
-3. **SSL Bypass Required**: Corporate networks need custom `SSLAdapter` and `verify=False`
-4. **Path Resolution**: Always use `os.path.abspath()` before `send_file()` in Flask routes
-5. **No Auto-Reload**: `use_reloader=False` prevents losing `current_pipeline` state
-6. **Render Ephemeral Filesystem**: Must use `/tmp/` for uploads/cache on Render (files lost between deployments)
-7. **Rate Limiting on Render**: Free tier shares IPs, hitting Google TTS limits - requires exponential backoff
-8. **iOS Autoplay Restriction**: Safari requires user gesture before audio.play() - track `hasUserInteracted` flag
-9. **Gunicorn Timeout**: Set to 120s to handle TTS retry delays (default 30s causes timeouts)
-10. **Memory-based Audio**: On Render, serve audio from memory cache via `BytesIO` (disk may not persist)
-11. **PWA Icons**: SVG icons used in manifest.json for scalability - supported by modern iOS Safari (13+)
-12. **Mobile Page Indicator Visibility**: Must use `display: block !important` in mobile CSS to prevent hiding - purple color, bold font for readability
-
-## Project Structure (Actual)
+### Project Structure (Recommended)
 ```
 ai-translate/
-├── books/              # Input: The Alchemist mini.pdf (7 pages), test_story.txt
-├── cache/              # Output: translations.json + *.mp3 files
+├── books/              # Input PDF/EPUB/TXT files
+├── cache/             # Translated text and audio cache
 ├── src/
-│   ├── app.py         # Flask routes (/upload, /process/<n>, /audio/<n>)
-│   ├── parser.py      # BookParser class (PDF/EPUB/TXT)
-│   ├── translator.py  # TranslationService with SSL bypass
-│   ├── tts.py         # TTSEngine using gTTS
-│   └── pipeline.py    # ProcessingPipeline (ThreadPoolExecutor)
-├── static/
-│   ├── css/style.css  # Gradient purple theme
-│   ├── js/app.js      # Player controls (~270 lines)
-│   ├── manifest.json  # PWA manifest for installability
-│   ├── sw.js          # Service worker for offline caching
-│   ├── icon-192.svg   # PWA app icon (192x192)
-│   └── icon-512.svg   # PWA app icon (512x512)
-├── templates/
-│   └── index.html     # Single-page app with PWA meta tags
-├── test_parser_features.py  # Parser unit tests
-├── test_features.py         # Integration tests
-├── atomic-smoke-tests.md    # 80 test cases (all passing)
-└── requirements.txt         # 7 dependencies (no API keys)
+│   ├── parser.py      # PDF/EPUB/TXT text extraction
+│   ├── translator.py  # Translation service wrapper
+│   ├── tts.py         # Text-to-speech engine
+│   ├── pipeline.py    # Async processing coordinator
+│   └── app.py         # Web server entry point
+├── static/            # CSS, JS for mini player
+├── templates/         # HTML templates
+├── requirements.txt   # Python dependencies
+└── prd.md            # Product requirements
 ```
 
-## Performance Considerations
-- Target: Audio ready for next page before current page finishes playing
-- Prefetch 2-3 pages ahead to handle variable processing times
-- Use connection pooling for translation API requests
-- Consider audio compression to reduce file size/latency
+## Critical Workflows
 
-## Reference Files
-- `prd.md`: Full product requirements and user experience goals
-- `FEATURE_IMPLEMENTATION.md`: Detailed docs on TXT support, auto-play, auto-advance, speed control
-- `PWA_IMPLEMENTATION.md`: Progressive Web App installation guide and technical details
-- `USAGE_GUIDE.md`: User-friendly how-to guide for new features
-- `COMPREHENSIVE_TEST_REPORT.md`: Complete testing results (atomic/minor/major levels, 32/32 passing)
-- `atomic-smoke-tests.md`: 80 legacy smoke test cases (all passing)
-- `render.yaml`: Production deployment configuration for Render.com
-- `requirements.txt`: Pinned dependencies (Flask, PyPDF2, gTTS, deep-translator, ebooklib, gunicorn)
-- `books/`: Sample files - "The Alchemist mini.pdf" (7 pages), "test_story.txt"
+### Setup & Testing
+```bash
+pip install -r requirements.txt  # Installs Flask, PyPDF2, gTTS, deep-translator, ebooklib
+python src/app.py                # Starts on http://localhost:5000 (no auto-reload)
+python test_audio_debug.py       # Test pipeline components
+```
+
+**Test File:** "The Alchemist mini.pdf" in `books/` folder (7 pages)
+
+### Testing New Features
+```bash
+python test_parser_features.py  # Test TXT parsing & existing formats
+python test_features.py          # Integration tests (server must be running)
+```
+
+**Sample Files:**
+- `books/The Alchemist mini.pdf` - 7 pages (PDF)
+- `books/test_story.txt` - Sample text file for TXT testing
