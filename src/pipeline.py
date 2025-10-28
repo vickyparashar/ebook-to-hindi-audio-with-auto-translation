@@ -120,6 +120,9 @@ class ProcessingPipeline:
             start_page: Starting page for prefetch
         """
         def prefetch_worker():
+            # Increase delay on Render
+            delay = 4 if os.environ.get('RENDER') else 1.5
+            
             for i in range(start_page, min(start_page + self.prefetch_count, self.total_pages)):
                 with self.processing_lock:
                     if i in self.processed_pages:
@@ -129,7 +132,7 @@ class ProcessingPipeline:
                     self.process_page(i)
                     # Add delay between prefetch requests to avoid rate limiting
                     if i < min(start_page + self.prefetch_count, self.total_pages) - 1:
-                        time.sleep(1.5)  # 1.5 second delay between prefetch pages
+                        time.sleep(delay)  # Longer delay on Render
                 except Exception as e:
                     print(f"Prefetch error for page {i}: {e}")
         

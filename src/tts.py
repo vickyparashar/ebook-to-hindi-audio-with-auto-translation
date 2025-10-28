@@ -64,11 +64,15 @@ class TTSEngine:
             print(f"Generating audio for text (length: {len(text)})")
             
             # Retry logic with exponential backoff for rate limiting
-            max_retries = 5
-            base_delay = 2  # Start with 2 seconds
+            max_retries = 8  # Increased from 5
+            base_delay = 5  # Increased from 2 seconds to 5 seconds
             
             for attempt in range(max_retries):
                 try:
+                    # Add initial delay to avoid rate limiting (especially on Render)
+                    if attempt == 0 and os.environ.get('RENDER'):
+                        time.sleep(3)  # 3 second delay before first attempt on Render
+                    
                     # Use gTTS to generate audio in memory
                     tts = gTTS(text=text, lang='hi', slow=False)
                     
@@ -95,14 +99,14 @@ class TTSEngine:
                     error_msg = str(tts_error)
                     
                     # Check if it's a rate limit error
-                    if "429" in error_msg or "Too Many Requests" in error_msg:
+                    if "429" in error_msg or "Too Many Requests" in error_msg or "HTTPError" in error_msg:
                         if attempt < max_retries - 1:
-                            delay = base_delay * (2 ** attempt)  # Exponential backoff
-                            print(f"Rate limit hit (429). Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
+                            delay = base_delay * (2 ** attempt)  # Exponential backoff: 5, 10, 20, 40, 80...
+                            print(f"Rate limit hit. Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
                             time.sleep(delay)
                             continue
                         else:
-                            raise Exception(f"Failed to generate audio after {max_retries} attempts: Rate limit exceeded")
+                            raise Exception(f"Failed to generate audio after {max_retries} attempts: Rate limit exceeded. Please try again in a few minutes.")
                     else:
                         # Not a rate limit error, raise immediately
                         raise Exception(f"Failed to generate audio: {error_msg}")
@@ -149,6 +153,9 @@ class TTSEngine:
             List of paths to generated audio files
         """
         audio_paths = []
+        # Increase delay on Render to avoid rate limits
+        delay_between = 3 if os.environ.get('RENDER') else 1
+        
         for i, text in enumerate(texts):
             try:
                 audio_path = self.generate_audio(text, page_num=i)
@@ -156,7 +163,7 @@ class TTSEngine:
                 
                 # Add delay between requests to avoid rate limiting
                 if i < len(texts) - 1:  # Don't delay after the last one
-                    time.sleep(1)  # 1 second delay between requests
+                    time.sleep(delay_between)
                     
             except Exception as e:
                 print(f"Error generating audio for text {i}: {e}")
