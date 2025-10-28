@@ -13,6 +13,7 @@ This Python application translates PDF/EPUB/TXT files from English to Hindi and 
 - ✅ All 32/32 comprehensive tests passing (Playwright)
 - ✅ iOS Safari compatibility verified with autoplay policies
 - ✅ Rate limiting handled with exponential backoff on production
+- ✅ Mobile page indicator visibility fixed (purple, bold, always visible)
 
 ## Quick Start for AI Agents
 
