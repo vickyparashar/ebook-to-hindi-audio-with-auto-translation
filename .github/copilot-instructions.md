@@ -152,7 +152,33 @@ python test_features.py          # Integration tests (server must be running)
 - `books/The Alchemist mini.pdf` - 7 pages (PDF)
 - `books/test_story.txt` - Sample text file for TXT testing
 
-### Smoke Testing with Playwright MCP (80/80 PASSING ✅)
+### Comprehensive Testing with Playwright (32/32 PASSING ✅)
+**Latest Results:** See `COMPREHENSIVE_TEST_REPORT.md` for full details
+
+**Test execution:** Use Playwright MCP browser tools
+```javascript
+// Upload and test file
+await page.goto('http://localhost:5000/');
+await page.getByText('📚 Drop your book here').click();
+await fileChooser.setFiles(['books/test_story.txt']);
+await page.waitForTimeout(15000);  // Wait for processing
+
+// Verify auto-play
+const pauseBtn = await page.getByRole('button', { name: '⏸️' });
+// If pause button visible, auto-play is working
+
+// Test speed control
+await page.locator('#speed-slider').click();
+const speedDisplay = await page.locator('#speed-value').textContent();
+// Should show "1.0x", "1.5x", etc.
+```
+
+**Test Coverage:**
+- Atomic: 7 tests (parsers, components) - 100% pass
+- Minor: 15 tests (feature integration) - 100% pass  
+- Major: 10 tests (end-to-end workflows) - 100% pass
+
+### Smoke Testing with Playwright MCP (Legacy - 80/80 PASSING ✅)
 **Test execution:** Use Playwright MCP browser tools
 ```javascript
 // Example test flow
@@ -205,6 +231,7 @@ ai-translate/
 
 ## Reference Files
 - `prd.md`: Full product requirements and user experience goals
-- `FEATURE_IMPLEMENTATION.md`: Detailed docs on TXT support, auto-play, auto-advance
+- `FEATURE_IMPLEMENTATION.md`: Detailed docs on TXT support, auto-play, auto-advance, speed control
 - `USAGE_GUIDE.md`: User-friendly how-to guide for new features
+- `COMPREHENSIVE_TEST_REPORT.md`: Complete testing results (atomic/minor/major levels, 32/32 passing)
 - `books/`: Sample files - "The Alchemist mini.pdf" (7 pages), "test_story.txt"
