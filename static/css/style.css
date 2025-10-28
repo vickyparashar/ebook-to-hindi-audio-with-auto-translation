@@ -150,8 +150,11 @@ header h1 {
 }
 
 #page-info {
-    color: #666;
+    color: #667eea;
     font-size: 1.1em;
+    font-weight: 600;
+    display: block;
+    margin-top: 5px;
 }
 
 .audio-player {
@@ -557,11 +560,14 @@ header h1 {
     
     /* Page info visibility fix for mobile */
     #page-info {
-        color: #667eea;
-        font-size: 1em;
-        font-weight: 600;
-        margin-top: 8px;
+        color: #667eea !important;
+        font-size: 1.1em !important;
+        font-weight: 700 !important;
+        margin-top: 10px !important;
+        margin-bottom: 10px !important;
         display: block !important;
+        text-align: center !important;
+        padding: 5px 0 !important;
     }
     
     .book-info {
