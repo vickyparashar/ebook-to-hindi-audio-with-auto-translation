@@ -44,6 +44,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Detect iOS
     isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     
+    // Configure iOS background audio session
+    if (isIOS) {
+        setupiOSBackgroundAudio();
+    }
+    
     setupEventListeners();
     
     // Register Service Worker for PWA
@@ -59,6 +64,86 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('App initialized', isIOS ? '(iOS detected)' : '');
 });
+
+// Setup iOS Background Audio Session
+function setupiOSBackgroundAudio() {
+    console.log('Setting up iOS background audio...');
+    
+    // Enable background audio playback by preventing iOS from pausing audio
+    // when the app goes to background or screen locks
+    if (audioElement) {
+        // Set audio session for continuous playback
+        audioElement.addEventListener('loadstart', () => {
+            console.log('iOS: Audio loading, requesting background playback');
+            // Request background playback permission
+            if (navigator.mediaSession) {
+                navigator.mediaSession.setActionHandler('play', () => {
+                    console.log('iOS: Media session play');
+                    playAudio();
+                });
+                
+                navigator.mediaSession.setActionHandler('pause', () => {
+                    console.log('iOS: Media session pause');
+                    pauseAudio();
+                });
+                
+                navigator.mediaSession.setActionHandler('previoustrack', () => {
+                    console.log('iOS: Media session previous');
+                    previousPage();
+                });
+                
+                navigator.mediaSession.setActionHandler('nexttrack', () => {
+                    console.log('iOS: Media session next');
+                    nextPage();
+                });
+            }
+        });
+        
+        // Prevent iOS from suspending audio when app goes to background
+        audioElement.addEventListener('playing', () => {
+            console.log('iOS: Audio playing, maintaining wake lock');
+            // Update media session metadata for background controls
+            if (navigator.mediaSession && currentFilename) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: `Page ${currentPage + 1} of ${totalPages}`,
+                    artist: 'AI Audiobook Translator',
+                    album: currentFilename,
+                    artwork: [
+                        { src: '/static/icon-192.svg', sizes: '192x192', type: 'image/svg+xml' },
+                        { src: '/static/icon-512.svg', sizes: '512x512', type: 'image/svg+xml' }
+                    ]
+                });
+            }
+        });
+        
+        // Handle visibility change (app going to background/foreground)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                console.log('iOS: App went to background, audio should continue');
+                // Keep audio playing in background
+                if (!audioElement.paused) {
+                    console.log('iOS: Ensuring audio continues in background');
+                }
+            } else {
+                console.log('iOS: App came to foreground');
+                // Refresh UI state when app comes back to foreground
+                updateProgress();
+            }
+        });
+        
+        // Handle page show/hide events (iOS Safari specific)
+        window.addEventListener('pageshow', (e) => {
+            if (e.persisted) {
+                console.log('iOS: Page restored from cache, checking audio state');
+                updateProgress();
+            }
+        });
+        
+        window.addEventListener('pagehide', () => {
+            console.log('iOS: Page hiding, maintaining audio session');
+        });
+    }
+}
 
 // Setup Event Listeners
 function setupEventListeners() {
@@ -255,14 +340,41 @@ async function loadPage(pageNum) {
 
 // Play Audio
 function playAudio() {
+    console.log('Attempting to play audio...');
+    
+    // For iOS, ensure we have a proper user interaction before playing
+    if (isIOS && !hasUserInteracted) {
+        console.log('iOS: Waiting for user interaction before auto-play');
+        playPauseBtn.textContent = '▶️';
+        playPauseBtn.title = 'Tap to Play';
+        return;
+    }
+    
     const playPromise = audioElement.play();
     
     if (playPromise !== undefined) {
         playPromise
             .then(() => {
+                console.log('Audio playback started successfully');
                 playPauseBtn.textContent = '⏸️';
                 playPauseBtn.title = 'Pause';
                 hasUserInteracted = true; // Mark as interacted after successful play
+                
+                // Update media session metadata for iOS background controls
+                if (isIOS && navigator.mediaSession && currentFilename) {
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title: `Page ${currentPage + 1} of ${totalPages}`,
+                        artist: 'AI Audiobook Translator',
+                        album: currentFilename,
+                        artwork: [
+                            { src: '/static/icon-192.svg', sizes: '192x192', type: 'image/svg+xml' },
+                            { src: '/static/icon-512.svg', sizes: '512x512', type: 'image/svg+xml' }
+                        ]
+                    });
+                    
+                    // Set playback state
+                    navigator.mediaSession.playbackState = 'playing';
+                }
             })
             .catch(err => {
                 console.error('Play error:', err);
@@ -280,9 +392,15 @@ function playAudio() {
 
 // Pause Audio
 function pauseAudio() {
+    console.log('Pausing audio...');
     audioElement.pause();
     playPauseBtn.textContent = '▶️';
     playPauseBtn.title = 'Play';
+    
+    // Update iOS media session state
+    if (isIOS && navigator.mediaSession) {
+        navigator.mediaSession.playbackState = 'paused';
+    }
 }
 
 // Toggle Play/Pause

@@ -205,8 +205,9 @@ render.yaml        # Production deployment config
 6. **Render Ephemeral Filesystem**: Must use `/tmp/` for uploads/cache on Render (files lost between deployments)
 7. **Rate Limiting on Render**: Free tier shares IPs, hitting Google TTS limits - requires exponential backoff
 8. **iOS Autoplay Restriction**: Safari requires user gesture before audio.play() - track `hasUserInteracted` flag
-9. **Gunicorn Timeout**: Set to 120s to handle TTS retry delays (default 30s causes timeouts)
-10. **Memory-based Audio**: On Render, serve audio from memory cache via `BytesIO` (disk may not persist)
+9. **iOS Background Audio**: Use Media Session API for continuous background playback - see `iOS-BACKGROUND-AUDIO-FIX.md`
+10. **Gunicorn Timeout**: Set to 120s to handle TTS retry delays (default 30s causes timeouts)
+11. **Memory-based Audio**: On Render, serve audio from memory cache via `BytesIO` (disk may not persist)
 
 ## Current Stack (All Dependencies Working)
 - **Flask 3.0.0** - Web server (no auto-reload)
