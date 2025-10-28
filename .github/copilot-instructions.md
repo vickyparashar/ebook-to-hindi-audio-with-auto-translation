@@ -14,6 +14,9 @@ This Python application translates PDF/EPUB/TXT files from English to Hindi and 
 - ✅ iOS Safari compatibility verified with autoplay policies
 - ✅ Rate limiting handled with exponential backoff on production
 - ✅ Mobile page indicator visibility fixed (purple, bold, always visible)
+- ✅ Touch-friendly sliders (40px height vs 16px - meets iOS/Android 44px target guidelines)
+- ✅ Long book title wrapping (word-break, multi-line support with padding)
+- ✅ Mobile layout tested: portrait (375x667px), landscape (667x375px), edge cases
 
 ## Quick Start for AI Agents
 
@@ -224,8 +227,33 @@ self.addEventListener('fetch', event => {
     text-align: center !important;   /* Center align */
     padding: 5px 0 !important;       /* Touch-friendly padding */
 }
+
+// Touch-friendly sliders (40px height meets iOS/Android 44px guideline)
+input[type="range"] {
+    height: 40px !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background: transparent !important;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    width: 20px !important;
+    height: 20px !important;
+    border-radius: 50% !important;
+    background: white !important;
+}
+
+// Long book title wrapping
+.book-info h2 {
+    font-size: 1.1em !important;
+    word-wrap: break-word !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    line-height: 1.3 !important;
+    padding: 0 10px !important;
+}
 ```
-**Why:** Mobile layouts need explicit visibility rules with `!important` to override any conflicting styles. Purple color (#667eea) ensures page indicator stands out on white backgrounds. Always test UI elements on actual mobile devices or Playwright mobile view (375x667px).
+**Why:** Mobile layouts need explicit visibility rules with `!important` to override any conflicting styles. Purple color (#667eea) ensures page indicator stands out on white backgrounds. 40px slider height approaches iOS/Android 44px minimum touch target guideline (16px was too small). Long titles wrap across multiple lines with proper padding. Always test UI elements on actual mobile devices or Playwright mobile view (375x667px).
 
 **Testing Pattern:** Use Playwright MCP with mobile viewport before deploying:
 ```javascript
