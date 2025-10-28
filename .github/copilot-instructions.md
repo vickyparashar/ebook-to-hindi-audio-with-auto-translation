@@ -204,21 +204,35 @@ self.addEventListener('fetch', event => {
 
 ### 12. Mobile Responsiveness (static/css/style.css)
 ```css
-// Mobile-specific fixes in @media (max-width: 768px)
+// Base styling - visible by default
 #page-info {
-    color: #667eea;              /* Purple for visibility */
-    font-size: 1em;              /* Readable on small screens */
-    font-weight: 600;            /* Bold emphasis */
-    margin-top: 8px;
-    display: block !important;   /* Force display - prevents hiding */
+    color: #667eea;              /* Purple - visible on white background */
+    font-size: 1.1em;
+    font-weight: 600;
+    display: block;
+    margin-top: 5px;
 }
 
-.book-info h2 {
-    font-size: 1.3em;            /* Smaller on mobile */
-    margin-bottom: 8px;
+// Mobile-specific overrides in @media (max-width: 768px)
+#page-info {
+    color: #667eea !important;       /* Purple for visibility */
+    font-size: 1.1em !important;     /* Readable on small screens */
+    font-weight: 700 !important;     /* Bolder on mobile */
+    margin-top: 10px !important;     /* More spacing */
+    margin-bottom: 10px !important;
+    display: block !important;       /* Force display - prevents hiding */
+    text-align: center !important;   /* Center align */
+    padding: 5px 0 !important;       /* Touch-friendly padding */
 }
 ```
-**Why:** Mobile layouts need explicit visibility rules. The `!important` flag prevents accidental hiding by other CSS rules. Purple color ensures page indicator stands out on small screens. Always test UI elements on actual mobile devices, not just browser DevTools.
+**Why:** Mobile layouts need explicit visibility rules with `!important` to override any conflicting styles. Purple color (#667eea) ensures page indicator stands out on white backgrounds. Always test UI elements on actual mobile devices or Playwright mobile view (375x667px).
+
+**Testing Pattern:** Use Playwright MCP with mobile viewport before deploying:
+```javascript
+await page.setViewportSize({ width: 375, height: 667 });  // iPhone size
+await page.goto('http://localhost:5000/');
+// Upload test file and verify page indicator visibility
+```
 
 **Pattern:** When adding new UI elements, immediately add mobile-specific styles in the `@media (max-width: 768px)` block.
 
