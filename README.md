@@ -82,27 +82,39 @@ All dependencies are **free and open-source** with **no API keys required**:
 
 ## 🎯 How It Works
 
-1. **Upload**: Drag & drop a PDF/EPUB file or browse to select
+1. **Upload**: Drag & drop a PDF/EPUB/TXT file or browse to select
 2. **Processing**: App extracts text, translates to Hindi, and generates audio
 3. **Playback**: Listen immediately while subsequent pages process in background
-4. **Navigate**: Use player controls to pause, skip, or adjust volume
+4. **Navigate**: Use player controls to pause, skip, adjust volume, or change speed
+5. **Bookshelf**: Manage your library - load previous books or delete unwanted files
+
+### iOS Safari Users
+On iPhone/iPad, tap the play button (▶️) on the first page to enable audio. Subsequent pages will auto-play automatically.
 
 ## 📁 Project Structure
 
 ```
-ai-translate/
-├── books/              # Input PDF/EPUB files
+ebook-to-hindi-audio-with-auto-translation/
+├── books/              # Input PDF/EPUB/TXT files
 ├── cache/             # Translated text & audio cache
 ├── src/
-│   ├── app.py         # Flask web server
-│   ├── parser.py      # PDF/EPUB text extraction
-│   ├── translator.py  # Translation service
-│   ├── tts.py         # Text-to-speech engine
-│   └── pipeline.py    # Async processing coordinator
-├── static/            # CSS, JavaScript
-├── templates/         # HTML templates
-├── atomic-smoke-tests.md  # Test cases (80 tests)
-├── prd.md            # Product requirements
+│   ├── app.py         # Flask web server with Render support
+│   ├── parser.py      # PDF/EPUB/TXT text extraction
+│   ├── translator.py  # Translation service with SSL bypass
+│   ├── tts.py         # TTS engine with rate limit retry logic
+│   └── pipeline.py    # Async processing with prefetching
+├── static/
+│   ├── css/style.css  # Gradient purple theme with iOS optimizations
+│   └── js/app.js      # Player controls with iOS Safari support
+├── templates/
+│   └── index.html     # Single-page app with bookshelf modal
+├── .github/
+│   └── copilot-instructions.md  # AI agent development guide
+├── render.yaml        # Render.com deployment configuration
+├── requirements.txt   # Python dependencies
+├── COMPREHENSIVE_TEST_REPORT.md  # 32/32 tests passing
+├── atomic-smoke-tests.md         # 80 legacy smoke tests
+├── prd.md            # Product requirements document
 └── README.md
 ```
 
@@ -113,37 +125,72 @@ The project includes comprehensive testing at multiple levels - **ALL PASSING �
 **Comprehensive Test Suite:**
 - ✅ **Atomic Level** (7 tests): Component-level testing (parsers, translators, TTS)
 - ✅ **Minor Level** (15 tests): Feature integration testing
-- ✅ **Major Level** (10 tests): End-to-end workflows
+- ✅ **Major Level** (10 tests): End-to-end workflows including iOS Safari
 
 **Total: 32/32 Tests PASSED** 🎉
 
 **Legacy Smoke Tests:**
 - ✅ 80 atomic smoke tests using Playwright MCP
-- ✅ Covers all features: upload, parsing, translation, TTS, playback, UI/UX
+- ✅ Covers all features: upload, parsing, translation, TTS, playback, bookshelf, UI/UX
+
+**Production Testing:**
+- ✅ Tested on Render.com deployment
+- ✅ Verified iOS Safari compatibility (iPhone/iPad)
+- ✅ Rate limiting handled with exponential backoff
+- ✅ Memory-based audio serving on ephemeral filesystem
 
 See `COMPREHENSIVE_TEST_REPORT.md` and `atomic-smoke-tests.md` for complete test details.
 
 ## 🛠️ Development
 
 ### Architecture
-- **Modular Design**: Separate parsing, translation, TTS, and playback
-- **Async Pipeline**: Process pages 2-3 ahead of current playback
-- **Caching Strategy**: Store translations and audio for resume capability
+- **Modular Design**: Separate parsing, translation, TTS, and playback components
+- **Async Pipeline**: Process pages 2-3 ahead of current playback for seamless transitions
+- **Caching Strategy**: MD5-based caching for translations and audio files
+- **Environment-aware**: Auto-detects local vs Render deployment (`RENDER` env var)
+- **Rate Limit Handling**: Exponential backoff retry (5→10→20→40→80s) for TTS API
+- **iOS Compatibility**: User interaction tracking for Safari autoplay policies
 
 ### Key Workflows
-- Upload → Parse → Translate → Generate Audio → Play
-- Background prefetch for seamless page transitions
-- Smart caching for instant resume
+- Upload → Parse → Translate → Generate Audio → Stream & Play
+- Background prefetch with rate-limit delays (1.5s between pages)
+- Smart caching with content-based hashing (MD5)
+- Memory-based audio serving on Render's ephemeral filesystem
 
-See `.github/copilot-instructions.md` for detailed development guidelines.
+### Deployment Environments
+
+**Local Development:**
+- Uses `books/` and `cache/` directories
+- Debug mode with detailed logging
+- Port: 5000
+
+**Production (Render):**
+- Uses `/tmp/books` and `/tmp/cache` (ephemeral)
+- Gunicorn WSGI server (2 workers, 120s timeout)
+- Memory-based audio caching via BytesIO
+- Auto-deploy from `feature/auto-play` branch
+- Port: Dynamic (set by Render via `$PORT`)
+
+See `.github/copilot-instructions.md` for detailed development guidelines and critical implementation patterns.
 
 ## 📝 Configuration
 
 No configuration needed! The app works out-of-the-box with:
 - **Translation**: deep-translator with Google Translate (free, no API key)
-- **TTS**: gTTS for high-quality Hindi audio (free, no API key)
-- **Storage**: Local filesystem caching (cache/ folder)
+- **TTS**: gTTS for high-quality Hindi audio (free, no API key, with retry logic)
+- **Storage**: 
+  - Local: `books/` and `cache/` directories
+  - Render: `/tmp/books` and `/tmp/cache` (ephemeral filesystem)
 - **SSL**: Custom bypass for corporate network environments
+- **Rate Limiting**: Automatic exponential backoff on TTS API limits
+- **iOS Support**: Automatic detection and autoplay policy compliance
+
+### Environment Variables (Render)
+```yaml
+RENDER=true              # Auto-detected on Render platform
+PORT=10000              # Set by Render dynamically
+PYTHON_VERSION=3.11.0   # Specified in render.yaml
+```
 
 ## 🤝 Contributing
 
@@ -159,19 +206,26 @@ This project is open-source and available under the MIT License.
 
 ## ✨ Current Status
 
-**🎉 Production Ready - All Features Working!**
+**🎉 Production Ready - Deployed & All Features Working!**
 
-- ✅ PDF/EPUB parsing with multi-page support
-- ✅ English → Hindi translation with smart caching
-- ✅ High-quality Hindi audio generation (gTTS)
-- ✅ Real-time streaming playback
-- ✅ Async prefetching (3 pages ahead)
-- ✅ Beautiful responsive UI with gradient purple theme
-- ✅ Complete playback controls (play/pause, next/prev, volume)
-- ✅ Auto-advance to next page when audio completes
+**Live URL:** https://ebook-to-hindi-audio-with-auto.onrender.com/
+
+- ✅ PDF/EPUB/TXT parsing with multi-page support (250-word TXT pagination)
+- ✅ English → Hindi translation with MD5-based smart caching
+- ✅ High-quality Hindi audio generation (gTTS with rate limit retry)
+- ✅ Real-time streaming playback with memory-based serving
+- ✅ Async prefetching (3 pages ahead with 1.5s delays)
+- ✅ Beautiful gradient purple theme with smooth animations
+- ✅ Complete playback controls (play/pause, next/prev, volume, speed)
+- ✅ Auto-play with iOS Safari compatibility (user interaction tracking)
+- ✅ Auto-advance to next page when audio completes (500ms delay)
+- ✅ Bookshelf management (browse, load, delete books)
 - ✅ Progress tracking with time display
-- ✅ Error handling and graceful degradation
+- ✅ Error handling with exponential backoff (5→80s retry delays)
 - ✅ Fast performance (<2s page loads, <3s translation)
+- ✅ Mobile-ready with iOS touch optimizations
+- ✅ Production deployment on Render.com with auto-deploy
+- ✅ Comprehensive test coverage (32/32 tests passing)
 
 ## 🎯 Future Roadmap
 
@@ -182,15 +236,32 @@ This project is open-source and available under the MIT License.
 - [ ] Cloud storage integration
 - [ ] User accounts and preferences
 
-## 🐛 Known Issues
+## 🐛 Known Issues & Solutions
 
-**None!** All tests passing. The application is production-ready.
+**None!** All tests passing. The application is production-ready and deployed.
+
+### Platform-Specific Notes
+
+**iOS Safari (iPhone/iPad):**
+- ✅ First page requires manual play button tap (Safari autoplay policy)
+- ✅ Subsequent pages auto-play automatically after user interaction
+- ✅ Touch optimizations applied (`-webkit-tap-highlight-color: transparent`)
+
+**Render.com Deployment:**
+- ✅ Ephemeral filesystem handled (uses `/tmp/` directories)
+- ✅ Rate limiting mitigated with exponential backoff retry
+- ✅ Memory-based audio serving (no persistent disk required)
+- ✅ Gunicorn timeout set to 120s for retry delays
 
 **Recent Improvements:**
 - ✅ Smart TXT pagination (250-word max pages for fast processing)
 - ✅ Large text files automatically split into manageable chunks
-- ✅ Mobile-responsive design (works on phones and tablets)
-- ✅ Streaming mode - no upfront parsing, on-demand page processing
+- ✅ Bookshelf feature (manage books from library)
+- ✅ iOS Safari full compatibility with autoplay workarounds
+- ✅ Render.com production deployment with auto-deploy
+- ✅ Rate limit handling with 5-attempt exponential backoff
+- ✅ Mobile-responsive design with touch optimizations
+- ✅ Streaming mode - on-demand page processing
 - ✅ Auto-play and auto-advance for hands-free listening
 - ✅ Playback speed control (0.5x to 2.0x)
 
@@ -203,8 +274,11 @@ This project is open-source and available under the MIT License.
 
 ## 📧 Support
 
-For issues and questions, please open an issue on GitHub.
+For issues and questions:
+- **GitHub Issues**: https://github.com/vickyparashar/ebook-to-hindi-audio-with-auto-translation/issues
+- **Live Demo**: https://ebook-to-hindi-audio-with-auto.onrender.com/
+- **Documentation**: See `.github/copilot-instructions.md` for development details
 
 ---
 
-**Note**: This project uses only free, open-source tools requiring no API keys or accounts. Perfect for personal use!
+**Note**: This project uses only free, open-source tools requiring no API keys or accounts. Perfect for personal use and deployed on Render's free tier!
