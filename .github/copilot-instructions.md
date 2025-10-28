@@ -6,7 +6,13 @@ This Python application translates PDF/EPUB/TXT files from English to Hindi and 
 
 **Production Deployment:** https://ebook-to-hindi-audio-with-auto.onrender.com/ (Render.com)
 
-**Latest Update:** All features tested at atomic, minor, and major levels with Playwright - 32/32 tests passing. iOS Safari compatibility verified with user interaction tracking for autoplay policies.
+**Latest Update (Oct 28, 2025):** 
+- ✅ PWA (Progressive Web App) fully implemented and deployed
+- ✅ Service worker active with offline caching
+- ✅ Installable on iPhone/iPad via "Add to Home Screen"
+- ✅ All 32/32 comprehensive tests passing (Playwright)
+- ✅ iOS Safari compatibility verified with autoplay policies
+- ✅ Rate limiting handled with exponential backoff on production
 
 ## Quick Start for AI Agents
 
@@ -341,6 +347,7 @@ ai-translate/
 ## Reference Files
 - `prd.md`: Full product requirements and user experience goals
 - `FEATURE_IMPLEMENTATION.md`: Detailed docs on TXT support, auto-play, auto-advance, speed control
+- `PWA_IMPLEMENTATION.md`: Progressive Web App installation guide and technical details
 - `USAGE_GUIDE.md`: User-friendly how-to guide for new features
 - `COMPREHENSIVE_TEST_REPORT.md`: Complete testing results (atomic/minor/major levels, 32/32 passing)
 - `atomic-smoke-tests.md`: 80 legacy smoke test cases (all passing)
