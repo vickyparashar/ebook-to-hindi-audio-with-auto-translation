@@ -100,54 +100,62 @@ class BookParser:
             with open(self.file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
             
-            # Split by double newlines (paragraphs) or single newlines
-            paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
-            
-            # If no paragraphs, split by single lines
-            if len(paragraphs) == 0:
-                paragraphs = [line.strip() for line in content.split('\n') if line.strip()]
-            
             # Break into small pages (200-250 words max for faster processing)
             MAX_WORDS_PER_PAGE = 250
             pages = []
-            current_page = []
-            word_count = 0
             
-            for para in paragraphs:
-                para_words = len(para.split())
+            # Split by double newlines (paragraphs) first
+            paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+            
+            # If no paragraphs (continuous text), use word-based chunking
+            if len(paragraphs) <= 1:
+                # File has no paragraph breaks - split by words directly
+                all_words = content.split()
                 
-                # If single paragraph is too large, split it further
-                if para_words > MAX_WORDS_PER_PAGE:
-                    # Split long paragraph by sentences
-                    sentences = para.replace('! ', '!|').replace('? ', '?|').replace('. ', '.|').split('|')
-                    for sentence in sentences:
-                        sentence = sentence.strip()
-                        if not sentence:
-                            continue
-                        sentence_words = len(sentence.split())
-                        
-                        if word_count + sentence_words > MAX_WORDS_PER_PAGE and current_page:
-                            # Save current page
-                            pages.append(' '.join(current_page))
-                            current_page = [sentence]
-                            word_count = sentence_words
-                        else:
-                            current_page.append(sentence)
-                            word_count += sentence_words
-                else:
-                    # Normal paragraph processing
-                    if word_count + para_words > MAX_WORDS_PER_PAGE and current_page:
-                        # Save current page
-                        pages.append('\n\n'.join(current_page))
-                        current_page = [para]
-                        word_count = para_words
+                # Create pages of MAX_WORDS_PER_PAGE words each
+                for i in range(0, len(all_words), MAX_WORDS_PER_PAGE):
+                    page_words = all_words[i:i + MAX_WORDS_PER_PAGE]
+                    pages.append(' '.join(page_words))
+            else:
+                # Normal paragraph processing
+                current_page = []
+                word_count = 0
+                
+                for para in paragraphs:
+                    para_words = len(para.split())
+                    
+                    # If single paragraph is too large, split it further
+                    if para_words > MAX_WORDS_PER_PAGE:
+                        # Split long paragraph by sentences
+                        sentences = para.replace('! ', '!|').replace('? ', '?|').replace('. ', '.|').split('|')
+                        for sentence in sentences:
+                            sentence = sentence.strip()
+                            if not sentence:
+                                continue
+                            sentence_words = len(sentence.split())
+                            
+                            if word_count + sentence_words > MAX_WORDS_PER_PAGE and current_page:
+                                # Save current page
+                                pages.append(' '.join(current_page))
+                                current_page = [sentence]
+                                word_count = sentence_words
+                            else:
+                                current_page.append(sentence)
+                                word_count += sentence_words
                     else:
-                        current_page.append(para)
-                        word_count += para_words
-            
-            # Add last page
-            if current_page:
-                pages.append('\n\n'.join(current_page))
+                        # Normal paragraph processing
+                        if word_count + para_words > MAX_WORDS_PER_PAGE and current_page:
+                            # Save current page
+                            pages.append('\n\n'.join(current_page))
+                            current_page = [para]
+                            word_count = para_words
+                        else:
+                            current_page.append(para)
+                            word_count += para_words
+                
+                # Add last page
+                if current_page:
+                    pages.append('\n\n'.join(current_page))
             
             # Store pages for later extraction
             self._txt_pages = pages
