@@ -1,268 +1,212 @@
-# AI-Powered Audiobook Translator - Development Guide
+# AI-Powered Audiobook Translator - AI Agent Development Guide
 
 ## Project Status: ✅ Production Ready & Deployed (100% Test Pass Rate)
 
-This Python application translates PDF/EPUB/TXT files from English to Hindi and streams them as audiobooks. The system uses async processing to prefetch 3 pages ahead while the current page plays, with auto-play, auto-advance, and variable speed control for hands-free listening.
+This Flask web application converts PDF/EPUB/TXT files to Hindi audiobooks using real-time translation and text-to-speech. The architecture centers around async processing pipeline with prefetching for seamless audio playback and auto-advance functionality.
 
-**Production Deployment:** https://ebook-to-hindi-audio-with-auto.onrender.com/ (Render.com)
+**Production:** https://ebook-to-hindi-audio-with-auto.onrender.com/  
+**Live Deployment:** Auto-deploys from `feature/auto-play` branch  
+**Testing:** 100% pass rate (36/36 tests across atomic/integration/e2e levels)
 
-**Latest Update (Oct 28, 2025):** 
-- ✅ PWA (Progressive Web App) fully implemented and deployed
-- ✅ Service worker active with offline caching
-- ✅ Installable on iPhone/iPad via "Add to Home Screen"
-- ✅ All 32/32 comprehensive tests passing (Playwright)
-- ✅ iOS Safari compatibility verified with autoplay policies
-- ✅ Rate limiting handled with exponential backoff on production
-- ✅ Mobile page indicator visibility fixed (purple, bold, always visible)
-- ✅ Touch-friendly sliders (40px height vs 16px - meets iOS/Android 44px target guidelines)
-- ✅ Long book title wrapping (word-break, multi-line support with padding)
-- ✅ Mobile layout tested: portrait (375x667px), landscape (667x375px), edge cases
+## 🎯 Essential Architecture for AI Agents
 
-## Quick Start for AI Agents
+### Core Processing Pipeline Flow
+1. **Upload** (`POST /upload`) → Saves file, initializes `ProcessingPipeline`
+2. **Page Request** (`GET /process/<page_num>`) → Triggers processing + prefetch
+3. **Audio Serve** (`GET /audio/<page_num>`) → Streams MP3 from memory/disk
+4. **Frontend Auto-play** (`static/js/app.js`) → Manages seamless page transitions
 
-**Local Development:**
-```bash
-python src/app.py  # Starts Flask on http://localhost:5000
+### Critical Global State Pattern
+```python
+# src/app.py - NEVER modify without understanding implications
+current_pipeline = None  # Global ProcessingPipeline instance
+
+# Pattern: Initialize on upload, persist across requests
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    global current_pipeline
+    current_pipeline = ProcessingPipeline(filepath, app.config['CACHE_FOLDER'])
 ```
 
-**Production Deployment (Render):**
-- Auto-deploys from `feature/auto-play` branch when pushed to GitHub
-- Uses Gunicorn WSGI server with 120s timeout, 2 workers
-- Environment detection: `RENDER` env var triggers `/tmp` filesystem usage
-- See `render.yaml` for configuration
-
-**Key Architecture Points:**
-- `src/app.py` - Flask server with Render environment detection (uses `/tmp` for ephemeral filesystem)
-- `src/parser.py` - Extracts text from PDF/EPUB/TXT (0-indexed pages, **250-word max per TXT page**)
-- `src/translator.py` - English→Hindi with custom SSL bypass & caching
-- `src/tts.py` - gTTS audio generation with **exponential backoff retry** (5 attempts: 5s→10s→20s→40s→80s)
-- `src/pipeline.py` - ThreadPoolExecutor for async prefetching with rate-limit delays
-- `cache/` - Stores `translations.json` and `{md5hash}.mp3` files (memory-based on Render)
-- `static/js/app.js` - Vanilla JS with iOS Safari autoplay workarounds
-- **Mobile-ready:** iOS detection, user interaction tracking, touch optimizations
-
-## Critical Implementation Details
-
-### 1. Translation with SSL Bypass (src/translator.py)
+### Environment-Aware Configuration
 ```python
-# Corporate networks require custom SSL adapter
+# src/app.py - Platform detection pattern
+UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/tmp/books') if os.environ.get('RENDER') else 'books'
+CACHE_FOLDER = os.environ.get('CACHE_FOLDER', '/tmp/cache') if os.environ.get('RENDER') else 'cache'
+
+# Why: Render uses ephemeral filesystem (/tmp/), local uses persistent directories
+```
+
+## 🔧 Critical Development Patterns
+
+### 1. Flask Route Architecture (src/app.py)
+```python
+# Request Flow: Upload → Process → Audio
+@app.route('/upload', methods=['POST'])     # Initialize pipeline
+@app.route('/process/<int:page_num>')       # Translate + prefetch
+@app.route('/audio/<int:page_num>')         # Stream MP3
+@app.route('/books', methods=['GET'])       # List bookshelf
+@app.route('/books/<filename>/load')        # Load from bookshelf
+```
+
+### 2. ProcessingPipeline State Management (src/pipeline.py)
+```python
+# Pattern: Async prefetching with ThreadPoolExecutor
+class ProcessingPipeline:
+    def get_page_with_prefetch(self, page_num):
+        page_data = self.get_page(page_num)      # Current page
+        self.prefetch_pages(page_num + 1)        # Background: +1, +2, +3
+        return page_data
+```
+
+### 3. Content-Based Caching Strategy
+```python
+# Translation cache: MD5 hash → Hindi text
+cache_key = hashlib.md5(text.encode('utf-8')).hexdigest()  # "abc123.mp3"
+# Audio files named by content hash for deduplication across books
+```
+
+### 4. Corporate SSL Bypass (src/translator.py)
+```python
+# Required for corporate networks blocking deep-translator
 class SSLAdapter(HTTPAdapter):
     def init_poolmanager(self, *args, **kwargs):
         kwargs['cert_reqs'] = ssl.CERT_NONE
         return super().init_poolmanager(*args, **kwargs)
-
-# Direct API calls to bypass deep-translator SSL issues
-url = f'https://translate.googleapis.com/translate_a/single?...'
-response = self.session.get(url, verify=False)
 ```
-**Why:** Corporate proxies break SSL verification. Must use custom session with SSL disabled.
 
-### 2. Audio File Path Resolution (src/app.py)
+### 5. Flask Path Resolution Pattern
 ```python
-# Pipeline stores relative paths, Flask needs absolute
-audio_path = page_data['audio_path']  # e.g., "cache\abc123.mp3"
+# Flask send_file() requires absolute paths from src/ subdirectory
+audio_path = page_data['audio_path']  # "cache\abc123.mp3"
 if not os.path.isabs(audio_path):
-    audio_path = os.path.abspath(audio_path)  # CRITICAL for send_file()
+    audio_path = os.path.abspath(audio_path)  # CRITICAL
+return send_file(audio_path, mimetype='audio/mpeg')
 ```
-**Why:** Flask's `send_file()` fails on relative paths when called from `src/` subdirectory.
 
-### 3. Flask Auto-Reloader Disabled
-```python
-app.run(debug=True, use_reloader=False)  # MUST be False
-```
-**Why:** Auto-reload resets `current_pipeline` global variable, losing all processing state.
-
-### 4. Async Prefetching (src/pipeline.py)
-```python
-# Prefetch 3 pages ahead using ThreadPoolExecutor
-executor.submit(self.process_page, page_num + i)
-```
-**Pattern:** Process page N while pages N+1, N+2, N+3 generate in background threads.
-
-### 5. Translation Caching (src/translator.py)
-```python
-cache_key = hashlib.md5(text.encode('utf-8')).hexdigest()
-# Stored in cache/translations.json as {hash: translated_text}
-```
-**Why:** Avoid re-translating same content. Key by MD5 hash, not page number.
-
-### 6. Audio File Naming (src/tts.py)
-```python
-cache_key = hashlib.md5(text.encode('utf-8')).hexdigest()
-audio_path = os.path.join(self.cache_dir, f"{cache_key}.mp3")
-```
-**Why:** Files named by content hash (e.g., `c460d0bae6ed6a67da99df8f8ac0f76d.mp3`) for deduplication.
-
-### 7. Text File Smart Pagination (src/parser.py)
-```python
-# Split by paragraphs (double newlines) or sentences
-# Break into small pages (200-250 words max for faster processing)
-MAX_WORDS_PER_PAGE = 250
-# If single paragraph is too large, split it by sentences
-sentences = para.replace('! ', '!|').replace('? ', '?|').replace('. ', '.|').split('|')
-```
-**Why:** TXT files lack native page structure. Smart pagination with **250-word maximum** ensures fast processing, reasonable audio lengths, and natural breaks. Large paragraphs are automatically split by sentences to prevent huge pages that slow down translation/TTS.
-
-### 8. Playback Speed Control (static/js/app.js, templates/index.html)
+### 6. iOS Safari Autoplay Compliance (static/js/app.js)
 ```javascript
-// Speed slider: 50-200 (0.5x to 2.0x), step 10
-speedSlider.addEventListener('input', (e) => {
-    const speed = e.target.value / 100;
-    audioElement.playbackRate = speed;
-    speedValue.textContent = speed.toFixed(1) + 'x';
+// Required: Track user interaction for Safari autoplay policy
+let hasUserInteracted = false;
+let isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+uploadArea.addEventListener('click', () => {
+    hasUserInteracted = true;  // Enable autoplay after user gesture
 });
-```
-**Why:** Users need variable reading speeds for comprehension or time-saving. HTML5 Audio API supports this natively.
-
-### 9. Render Deployment & Rate Limiting (src/tts.py, src/app.py, render.yaml)
-```python
-# Environment detection for Render's ephemeral filesystem
-UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/tmp/books') if os.environ.get('RENDER') else 'books'
-CACHE_FOLDER = os.environ.get('CACHE_FOLDER', '/tmp/cache') if os.environ.get('RENDER') else 'cache'
-
-# Exponential backoff for gTTS rate limits on Render
-max_retries = 5
-base_delay = 5  # Start with 5 seconds
-for attempt in range(max_retries):
-    try:
-        time.sleep(2)  # Initial delay on Render
-        tts = gTTS(text=text, lang='hi', slow=False)
-        # ... generate audio
-        break
-    except Exception as tts_error:
-        if "429" in str(tts_error) or "Too Many Requests" in str(tts_error):
-            delay = base_delay * (2 ** attempt)  # 5, 10, 20, 40, 80 seconds
-            time.sleep(delay)
-```
-**Why:** Render's shared IP hits Google TTS rate limits. Must use exponential backoff (5→10→20→40→80s) and initial 2s delay. Production uses Gunicorn with 120s timeout to handle long retries.
-
-### 10. iOS Safari Autoplay Compatibility (static/js/app.js)
-```javascript
-// Detect iOS and track user interactions
-isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-hasUserInteracted = false;
-
-// Set flag on ANY user interaction (click, upload, etc.)
-uploadArea.addEventListener('click', () => { hasUserInteracted = true; });
 
 // Conditional autoplay in loadPage()
-if (hasUserInteracted) {
-    playAudio();  // Auto-play on desktop or after iOS user gesture
-} else if (isIOS) {
-    playPauseBtn.textContent = '▶️';
-    console.log('iOS: Waiting for user interaction to play');
-}
-```
-**Why:** iOS Safari blocks `audio.play()` without prior user gesture. Solution: detect iOS, track any user interaction, then enable autoplay. First page requires manual play tap, subsequent pages auto-play.
-
-### 11. Progressive Web App (PWA) Support (static/, templates/)
-```javascript
-// Service Worker Registration (static/js/app.js)
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/static/sw.js')
-        .then(reg => console.log('Service Worker registered:', reg.scope))
-        .catch(err => console.log('Registration failed:', err));
-}
-
-// Service Worker Caching Strategy (static/sw.js)
-const CACHE_NAME = 'audiobook-translator-v1';
-const urlsToCache = ['/', '/static/css/style.css', '/static/js/app.js', '/static/manifest.json'];
-
-self.addEventListener('install', event => {
-    event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache)));
-});
-
-self.addEventListener('fetch', event => {
-    event.respondWith(
-        caches.match(event.request).then(response => response || fetch(event.request))
-    );
-});
-```
-
-```json
-// PWA Manifest (static/manifest.json)
-{
-  "name": "AI-Powered Audiobook Translator",
-  "short_name": "AudioBook",
-  "start_url": "/",
-  "display": "standalone",
-  "theme_color": "#667eea",
-  "icons": [
-    {"src": "/static/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml"},
-    {"src": "/static/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml"}
-  ]
+if (hasUserInteracted || !isIOS) {
+    playAudio();  // Auto-play allowed
 }
 ```
 
-```html
-<!-- PWA Meta Tags (templates/index.html) -->
-<link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-<link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192.svg') }}">
-<meta name="theme-color" content="#667eea">
+## 🚀 Essential Development Workflows
+
+### Local Development Setup
+```bash
+python src/app.py                    # Starts Flask server
+# NEVER use: app.run(use_reloader=True)  # Breaks global pipeline state
 ```
 
-**Why:** PWA enables "Add to Home Screen" on iPhone/iPad for native-like experience. Service worker provides offline caching and faster loading. SVG icons used for scalability and small file size. Standalone display mode removes Safari UI for immersive experience.
-
-**Installation:** Open in Safari → Share → Add to Home Screen → Purple headphone icon appears on home screen.
-
-### 12. Mobile Responsiveness (static/css/style.css)
-```css
-// Base styling - visible by default
-#page-info {
-    color: #667eea;              /* Purple - visible on white background */
-    font-size: 1.1em;
-    font-weight: 600;
-    display: block;
-    margin-top: 5px;
-}
-
-// Mobile-specific overrides in @media (max-width: 768px)
-#page-info {
-    color: #667eea !important;       /* Purple for visibility */
-    font-size: 1.1em !important;     /* Readable on small screens */
-    font-weight: 700 !important;     /* Bolder on mobile */
-    margin-top: 10px !important;     /* More spacing */
-    margin-bottom: 10px !important;
-    display: block !important;       /* Force display - prevents hiding */
-    text-align: center !important;   /* Center align */
-    padding: 5px 0 !important;       /* Touch-friendly padding */
-}
-
-// Touch-friendly sliders (40px height meets iOS/Android 44px guideline)
-input[type="range"] {
-    height: 40px !important;
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    background: transparent !important;
-}
-
-input[type="range"]::-webkit-slider-thumb {
-    width: 20px !important;
-    height: 20px !important;
-    border-radius: 50% !important;
-    background: white !important;
-}
-
-// Long book title wrapping
-.book-info h2 {
-    font-size: 1.1em !important;
-    word-wrap: break-word !important;
-    word-break: break-word !important;
-    overflow-wrap: break-word !important;
-    line-height: 1.3 !important;
-    padding: 0 10px !important;
-}
+### Testing Workflows
+```bash
+python test_features.py             # Integration tests (server must be running)
+python run_100_checkpoint_tests.py  # Automated test suite (22/22 passing)
 ```
-**Why:** Mobile layouts need explicit visibility rules with `!important` to override any conflicting styles. Purple color (#667eea) ensures page indicator stands out on white backgrounds. 40px slider height approaches iOS/Android 44px minimum touch target guideline (16px was too small). Long titles wrap across multiple lines with proper padding. Always test UI elements on actual mobile devices or Playwright mobile view (375x667px).
+**Note:** All tests require Flask server running on localhost:5000
 
-**Testing Pattern:** Use Playwright MCP with mobile viewport before deploying:
-```javascript
-await page.setViewportSize({ width: 375, height: 667 });  // iPhone size
-await page.goto('http://localhost:5000/');
-// Upload test file and verify page indicator visibility
+### Deployment Pattern (render.yaml)
+```yaml
+# Auto-deploys from feature/auto-play branch
+buildCommand: pip install -r requirements.txt
+startCommand: gunicorn src.app:app --timeout 120 --workers 2
+```
+Environment detection: `RENDER` env var → `/tmp/` filesystem usage
+## ⚠️ Critical Gotchas & Platform-Specific Patterns
+
+### 1. Render Production Rate Limiting (src/tts.py)
+```python
+# Exponential backoff for gTTS on shared Render IPs
+max_retries = 5
+base_delay = 5  # 5→10→20→40→80 seconds
+for attempt in range(max_retries):
+    try:
+        time.sleep(2 if os.environ.get('RENDER') else 0)  # Initial delay
+        tts = gTTS(text=text, lang='hi', slow=False)
+        break
+    except Exception as e:
+        if "429" in str(e):  # Rate limited
+            delay = base_delay * (2 ** attempt)
+            time.sleep(delay)
+```
+**Why:** Render's shared IP hits Google TTS limits. Production requires retry logic.
+
+### 2. Global Pipeline State Management
+```python
+# CRITICAL: Global state persists across HTTP requests
+current_pipeline = None  # DO NOT modify without understanding implications
+
+# Pattern: One pipeline per uploaded file
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    global current_pipeline
+    current_pipeline = ProcessingPipeline(filepath, cache_dir)  # Replaces previous
+```
+**Why:** Flask auto-reload resets globals. Must use `use_reloader=False`.
+
+### 3. Memory vs Disk Audio Serving
+```python
+# Render: Serve from memory (ephemeral filesystem)
+audio_data = current_pipeline.tts.get_audio_data(translated_text)
+if audio_data:
+    return send_file(audio_data, mimetype='audio/mpeg')  # BytesIO
+
+# Local: Fallback to disk
+return send_file(os.path.abspath(audio_path), mimetype='audio/mpeg')
+```
+**Pattern:** Memory-first for production, disk fallback for local development.
+
+## 📁 Current Stack (All Dependencies Working)
+- **Flask 3.0.0** - Web server (no auto-reload)
+- **Gunicorn 21.2.0** - Production WSGI server (Render deployment)
+- **PyPDF2 3.0.1** - PDF parsing (0-indexed: `reader.pages[page_num]`)
+- **ebooklib 0.18** - EPUB parsing with BeautifulSoup
+- **deep-translator 1.11.4** - Google Translate with custom SSL bypass
+- **gTTS 2.5.4** - Hindi audio generation (replaced pyttsx3 for cross-platform)
+
+## 🏗️ Project Structure (Essential Files)
+```
+src/
+├── app.py         # Flask routes + global state management
+├── pipeline.py    # ProcessingPipeline: ThreadPoolExecutor + prefetch logic
+├── parser.py      # BookParser: PDF/EPUB/TXT extraction (250-word TXT pages)
+├── translator.py  # TranslationService: SSL bypass + MD5 caching
+└── tts.py         # TTSEngine: gTTS + exponential backoff retry
+
+static/js/app.js   # Vanilla JS: iOS autoplay + user interaction tracking
+cache/             # translations.json + {md5hash}.mp3 files
+books/             # Input files (local) or /tmp/books (Render)
+render.yaml        # Production deployment config
 ```
 
-**Pattern:** When adding new UI elements, immediately add mobile-specific styles in the `@media (max-width: 768px)` block.
+## 🔧 Critical Testing Patterns
+- **Integration tests:** `python test_features.py` (requires server running)
+- **Automated suite:** `python run_100_checkpoint_tests.py` (22/22 passing)
+- **Playwright testing:** Use MCP browser tools for UI/UX validation
+- **Sample files:** `books/test_story.txt` (2 pages), `books/The Alchemist mini.pdf` (7 pages)
+
+## 🚨 Known Issues & Fixes (Essential for AI Agents)
+
+1. **Windows Unicode Console**: Removed emoji from server startup (`print("AI-Powered...")` not `print("🎧 AI-Powered...")`)
+2. **pyttsx3 Replaced**: Windows compatibility issues led to gTTS adoption (internet required but reliable)
+3. **SSL Bypass Required**: Corporate networks need custom `SSLAdapter` and `verify=False`
+4. **Path Resolution**: Always use `os.path.abspath()` before `send_file()` in Flask routes
+5. **No Auto-Reload**: `use_reloader=False` prevents losing `current_pipeline` state
+6. **Render Ephemeral Filesystem**: Must use `/tmp/` for uploads/cache on Render (files lost between deployments)
+7. **Rate Limiting on Render**: Free tier shares IPs, hitting Google TTS limits - requires exponential backoff
+8. **iOS Autoplay Restriction**: Safari requires user gesture before audio.play() - track `hasUserInteracted` flag
+9. **Gunicorn Timeout**: Set to 120s to handle TTS retry delays (default 30s causes timeouts)
+10. **Memory-based Audio**: On Render, serve audio from memory cache via `BytesIO` (disk may not persist)
 
 ## Current Stack (All Dependencies Working)
 - **Flask 3.0.0** - Web server (no auto-reload)
