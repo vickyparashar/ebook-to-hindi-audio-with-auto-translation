@@ -41,6 +41,75 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/books', methods=['GET'])
+def list_books():
+    """List all books in the books folder"""
+    try:
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        books = []
+        
+        for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.isfile(filepath) and allowed_file(filename):
+                file_size = os.path.getsize(filepath)
+                file_ext = filename.rsplit('.', 1)[1].lower()
+                books.append({
+                    'filename': filename,
+                    'size': file_size,
+                    'size_kb': round(file_size / 1024, 2),
+                    'type': file_ext.upper()
+                })
+        
+        return jsonify({'books': books})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/books/<filename>', methods=['DELETE'])
+def delete_book(filename):
+    """Delete a book from the books folder"""
+    try:
+        # Security: prevent directory traversal
+        filename = secure_filename(filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        if not os.path.exists(filepath):
+            return jsonify({'error': 'Book not found'}), 404
+        
+        os.remove(filepath)
+        return jsonify({'success': True, 'message': f'Deleted {filename}'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/books/<filename>/load', methods=['POST'])
+def load_book(filename):
+    """Load a book from the bookshelf"""
+    global current_pipeline
+    
+    try:
+        # Security: prevent directory traversal
+        filename = secure_filename(filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        if not os.path.exists(filepath):
+            return jsonify({'error': 'Book not found'}), 404
+        
+        if not allowed_file(filename):
+            return jsonify({'error': 'Invalid file type'}), 400
+        
+        # Initialize processing pipeline
+        current_pipeline = ProcessingPipeline(filepath, app.config['CACHE_FOLDER'])
+        
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'total_pages': current_pipeline.total_pages
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """Handle file upload"""
@@ -191,24 +260,6 @@ def get_status():
     
     status = current_pipeline.get_status()
     return jsonify(status)
-
-
-@app.route('/books', methods=['GET'])
-def list_books():
-    """List available books in books folder"""
-    try:
-        books = []
-        if os.path.exists(app.config['UPLOAD_FOLDER']):
-            for filename in os.listdir(app.config['UPLOAD_FOLDER']):
-                if allowed_file(filename):
-                    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                    books.append({
-                        'filename': filename,
-                        'size': os.path.getsize(filepath)
-                    })
-        return jsonify({'books': books})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/health', methods=['GET'])

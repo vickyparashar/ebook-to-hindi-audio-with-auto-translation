@@ -3,6 +3,8 @@ let currentPage = 0;
 let totalPages = 0;
 let currentFilename = '';
 let audioElement = null;
+let isIOS = false;
+let hasUserInteracted = false;
 
 // DOM Elements
 const uploadSection = document.getElementById('upload-section');
@@ -29,17 +31,39 @@ const totalTimeSpan = document.getElementById('total-time');
 const processingStatus = document.getElementById('processing-status');
 const processingMessage = document.getElementById('processing-message');
 
+// Bookshelf elements
+const bookshelfBtn = document.getElementById('bookshelf-btn');
+const bookshelfModal = document.getElementById('bookshelf-modal');
+const closeModalBtn = document.getElementById('close-modal');
+const booksList = document.getElementById('books-list');
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     audioElement = document.getElementById('audio-element');
+    
+    // Detect iOS
+    isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
     setupEventListeners();
-    console.log('App initialized');
+    console.log('App initialized', isIOS ? '(iOS detected)' : '');
 });
 
 // Setup Event Listeners
 function setupEventListeners() {
+    // Bookshelf events
+    bookshelfBtn.addEventListener('click', openBookshelf);
+    closeModalBtn.addEventListener('click', closeBookshelf);
+    bookshelfModal.addEventListener('click', (e) => {
+        if (e.target === bookshelfModal) {
+            closeBookshelf();
+        }
+    });
+    
     // Upload area events
-    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('click', () => {
+        hasUserInteracted = true;
+        fileInput.click();
+    });
     fileInput.addEventListener('change', handleFileSelect);
     
     // Drag and drop
@@ -54,6 +78,7 @@ function setupEventListeners() {
     
     uploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
+        hasUserInteracted = true;
         uploadArea.classList.remove('dragover');
         const files = e.dataTransfer.files;
         if (files.length > 0) {
@@ -61,10 +86,19 @@ function setupEventListeners() {
         }
     });
     
-    // Player controls
-    playPauseBtn.addEventListener('click', togglePlayPause);
-    prevBtn.addEventListener('click', previousPage);
-    nextBtn.addEventListener('click', nextPage);
+    // Player controls - mark user interaction
+    playPauseBtn.addEventListener('click', () => {
+        hasUserInteracted = true;
+        togglePlayPause();
+    });
+    prevBtn.addEventListener('click', () => {
+        hasUserInteracted = true;
+        previousPage();
+    });
+    nextBtn.addEventListener('click', () => {
+        hasUserInteracted = true;
+        nextPage();
+    });
     volumeSlider.addEventListener('input', (e) => {
         audioElement.volume = e.target.value / 100;
     });
@@ -170,8 +204,19 @@ async function loadPage(pageNum) {
             audioElement.src = data.audio_url;
             audioElement.load();
             
-            // Auto-play
-            playAudio();
+            // Auto-play only if user has interacted (required for iOS)
+            if (hasUserInteracted) {
+                playAudio();
+            } else {
+                // On iOS, show play button and wait for user interaction
+                if (isIOS) {
+                    playPauseBtn.textContent = '▶️';
+                    playPauseBtn.title = 'Tap to Play';
+                    console.log('iOS: Waiting for user interaction to play');
+                } else {
+                    playAudio();
+                }
+            }
             
             processingStatus.classList.add('hidden');
             
@@ -188,15 +233,27 @@ async function loadPage(pageNum) {
 
 // Play Audio
 function playAudio() {
-    audioElement.play()
-        .then(() => {
-            playPauseBtn.textContent = '⏸️';
-            playPauseBtn.title = 'Pause';
-        })
-        .catch(err => {
-            console.error('Play error:', err);
-            showError('Failed to play audio');
-        });
+    const playPromise = audioElement.play();
+    
+    if (playPromise !== undefined) {
+        playPromise
+            .then(() => {
+                playPauseBtn.textContent = '⏸️';
+                playPauseBtn.title = 'Pause';
+                hasUserInteracted = true; // Mark as interacted after successful play
+            })
+            .catch(err => {
+                console.error('Play error:', err);
+                // On iOS, this is expected if user hasn't interacted yet
+                if (isIOS && !hasUserInteracted) {
+                    playPauseBtn.textContent = '▶️';
+                    playPauseBtn.title = 'Tap to Play';
+                    console.log('iOS: User must tap play button first');
+                } else {
+                    showError('Failed to play audio. Tap play button to start.');
+                }
+            });
+    }
 }
 
 // Pause Audio
@@ -269,6 +326,126 @@ function showError(message) {
     setTimeout(() => {
         errorDisplay.classList.add('hidden');
     }, 5000);
+}
+
+// Bookshelf Functions
+async function openBookshelf() {
+    bookshelfModal.classList.remove('hidden');
+    await loadBookshelf();
+}
+
+function closeBookshelf() {
+    bookshelfModal.classList.add('hidden');
+}
+
+async function loadBookshelf() {
+    booksList.innerHTML = '<p class="loading-text">Loading books...</p>';
+    
+    try {
+        const response = await fetch('/books');
+        const data = await response.json();
+        
+        if (data.books && data.books.length > 0) {
+            displayBooks(data.books);
+        } else {
+            booksList.innerHTML = `
+                <div class="empty-bookshelf">
+                    <div class="empty-bookshelf-icon">📚</div>
+                    <p>Your bookshelf is empty</p>
+                    <p style="font-size: 0.9em; margin-top: 10px;">Upload some books to get started!</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        booksList.innerHTML = '<p class="loading-text">Error loading books</p>';
+        console.error('Error loading bookshelf:', error);
+    }
+}
+
+function displayBooks(books) {
+    const bookIcons = {
+        'PDF': '📕',
+        'EPUB': '📗',
+        'TXT': '📘'
+    };
+    
+    booksList.innerHTML = books.map(book => `
+        <div class="book-card" data-filename="${book.filename}">
+            <div class="book-icon">${bookIcons[book.type] || '📖'}</div>
+            <div class="book-title" title="${book.filename}">${book.filename}</div>
+            <div class="book-info">
+                <span class="book-type">${book.type}</span>
+                <span>${book.size_kb} KB</span>
+            </div>
+            <div class="book-actions">
+                <button class="book-btn load-btn" onclick="loadBookFromShelf('${book.filename}')">
+                    ▶️ Load
+                </button>
+                <button class="book-btn delete-btn" onclick="deleteBookFromShelf('${book.filename}')">
+                    🗑️ Delete
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function loadBookFromShelf(filename) {
+    try {
+        closeBookshelf();
+        uploadStatus.textContent = `Loading ${filename}...`;
+        uploadStatus.className = 'upload-status';
+        uploadStatus.classList.remove('hidden');
+        
+        const response = await fetch(`/books/${encodeURIComponent(filename)}/load`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentFilename = data.filename;
+            totalPages = data.total_pages;
+            currentPage = 0;
+            
+            // Update UI
+            bookTitle.textContent = currentFilename;
+            totalPagesSpan.textContent = totalPages;
+            
+            // Show player, hide upload
+            uploadSection.classList.add('hidden');
+            playerSection.classList.remove('hidden');
+            uploadStatus.classList.add('hidden');
+            
+            // Load first page
+            await loadPage(0);
+        } else {
+            showError(data.error || 'Failed to load book');
+        }
+    } catch (error) {
+        showError('Error loading book: ' + error.message);
+    }
+}
+
+async function deleteBookFromShelf(filename) {
+    if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/books/${encodeURIComponent(filename)}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            await loadBookshelf(); // Reload the bookshelf
+        } else {
+            alert('Error: ' + (data.error || 'Failed to delete book'));
+        }
+    } catch (error) {
+        alert('Error deleting book: ' + error.message);
+    }
 }
 
 // Log for debugging

@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>AI Audiobook Translator</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -11,7 +13,23 @@
         <header>
             <h1>🎧 AI Audiobook Translator</h1>
             <p class="subtitle">Convert PDF/EPUB/TXT to Hindi Audiobooks</p>
+            <button id="bookshelf-btn" class="bookshelf-btn" title="View Bookshelf">📚 My Books</button>
         </header>
+
+        <!-- Bookshelf Modal -->
+        <div id="bookshelf-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📚 My Bookshelf</h2>
+                    <button id="close-modal" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="books-list" class="books-list">
+                        <p class="loading-text">Loading books...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Upload Section -->
         <div id="upload-section" class="section">
