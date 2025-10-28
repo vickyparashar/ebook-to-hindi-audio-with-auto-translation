@@ -554,4 +554,22 @@ header h1 {
         margin-left: 0;
         margin-top: 10px;
     }
+    
+    /* Page info visibility fix for mobile */
+    #page-info {
+        color: #667eea;
+        font-size: 1em;
+        font-weight: 600;
+        margin-top: 8px;
+        display: block !important;
+    }
+    
+    .book-info {
+        margin-bottom: 20px;
+    }
+    
+    .book-info h2 {
+        font-size: 1.3em;
+        margin-bottom: 8px;
+    }
 }
