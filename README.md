@@ -2,6 +2,8 @@
 
 Convert PDF, EPUB, and TXT files into Hindi audiobooks with real-time translation and streaming playback.
 
+**🌐 Live Demo:** https://ebook-to-hindi-audio-with-auto.onrender.com/
+
 ## ✨ Features
 
 - 📚 **Multi-format Support**: PDF, EPUB, and TXT files
@@ -11,25 +13,33 @@ Convert PDF, EPUB, and TXT files into Hindi audiobooks with real-time translatio
 - ▶️ **Auto-Play**: Audio starts automatically when page loads
 - ⏭️ **Auto-Advance**: Automatically moves to next page when audio ends
 - ⚡ **Playback Speed Control**: Adjust reading speed from 0.5x to 2.0x
-- ⚡ **Streaming Playback**: Start listening immediately, no waiting for full conversion
+- 📚 **Bookshelf Management**: Browse, load, and delete books from library
 - 🔄 **Async Processing**: Background preparation of upcoming pages (3 pages ahead)
-- 🎨 **Modern UI**: Beautiful, intuitive mini player interface
-- 📱 **Mobile-Ready**: Responsive design works perfectly on smartphones and tablets
-- 💾 **Smart Caching**: Resume where you left off
+- 🎨 **Modern UI**: Beautiful gradient purple theme with smooth animations
+- 📱 **Mobile-Ready**: Full iOS Safari support with touch optimizations
+- 💾 **Smart Caching**: Resume where you left off with translation & audio caching
 - 🙌 **Hands-Free Experience**: Seamless continuous playback across all pages
+- ☁️ **Cloud Deployed**: Production-ready on Render.com with auto-deployment
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Live Demo
+Visit **https://ebook-to-hindi-audio-with-auto.onrender.com/** to use the app immediately!
+
+**Note:** iOS users - tap the play button on the first page to enable autoplay for subsequent pages.
+
+### Local Development
+
+#### Prerequisites
 - Python 3.8 or higher
 - pip (Python package manager)
 
-### Installation
+#### Installation
 
 1. **Clone the repository**
 ```bash
-git clone <repository-url>
-cd ai-translate
+git clone https://github.com/vickyparashar/ebook-to-hindi-audio-with-auto-translation.git
+cd ebook-to-hindi-audio-with-auto-translation
 ```
 
 2. **Install dependencies**
@@ -47,16 +57,28 @@ python src/app.py
 http://localhost:5000
 ```
 
+### Production Deployment (Render)
+
+The app auto-deploys to Render.com from the `feature/auto-play` branch:
+
+1. **Fork/Clone** the repository
+2. **Connect to Render** via GitHub integration
+3. **Configure** using included `render.yaml`
+4. **Deploy** - Render automatically builds and deploys
+
+See `render.yaml` for deployment configuration details.
+
 ## 📦 Dependencies
 
 All dependencies are **free and open-source** with **no API keys required**:
 
 - **Flask 3.0.0** - Lightweight web framework
+- **Gunicorn 21.2.0** - Production WSGI server (for Render deployment)
 - **PyPDF2 3.0.1** - PDF text extraction
 - **ebooklib 0.18** - EPUB parsing with BeautifulSoup
 - **deep-translator 1.11.4** - Google Translate (free, no API key)
-- **gTTS 2.5.4** - Google Text-to-Speech for Hindi audio
-- **asyncio** - Asynchronous processing with ThreadPoolExecutor
+- **gTTS 2.5.4** - Google Text-to-Speech for Hindi audio with retry logic
+- **ThreadPoolExecutor** - Asynchronous background processing
 
 ## 🎯 How It Works
 
