@@ -202,6 +202,26 @@ self.addEventListener('fetch', event => {
 
 **Installation:** Open in Safari → Share → Add to Home Screen → Purple headphone icon appears on home screen.
 
+### 12. Mobile Responsiveness (static/css/style.css)
+```css
+// Mobile-specific fixes in @media (max-width: 768px)
+#page-info {
+    color: #667eea;              /* Purple for visibility */
+    font-size: 1em;              /* Readable on small screens */
+    font-weight: 600;            /* Bold emphasis */
+    margin-top: 8px;
+    display: block !important;   /* Force display - prevents hiding */
+}
+
+.book-info h2 {
+    font-size: 1.3em;            /* Smaller on mobile */
+    margin-bottom: 8px;
+}
+```
+**Why:** Mobile layouts need explicit visibility rules. The `!important` flag prevents accidental hiding by other CSS rules. Purple color ensures page indicator stands out on small screens. Always test UI elements on actual mobile devices, not just browser DevTools.
+
+**Pattern:** When adding new UI elements, immediately add mobile-specific styles in the `@media (max-width: 768px)` block.
+
 ## Current Stack (All Dependencies Working)
 - **Flask 3.0.0** - Web server (no auto-reload)
 - **Gunicorn 21.2.0** - Production WSGI server (Render deployment)
@@ -312,6 +332,7 @@ await page.waitForTimeout(5000);  // Wait for processing
 9. **Gunicorn Timeout**: Set to 120s to handle TTS retry delays (default 30s causes timeouts)
 10. **Memory-based Audio**: On Render, serve audio from memory cache via `BytesIO` (disk may not persist)
 11. **PWA Icons**: SVG icons used in manifest.json for scalability - supported by modern iOS Safari (13+)
+12. **Mobile Page Indicator Visibility**: Must use `display: block !important` in mobile CSS to prevent hiding - purple color, bold font for readability
 
 ## Project Structure (Actual)
 ```
