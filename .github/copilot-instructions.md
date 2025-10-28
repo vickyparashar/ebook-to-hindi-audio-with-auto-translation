@@ -1,27 +1,35 @@
 # AI-Powered Audiobook Translator - Development Guide
 
-## Project Status: ✅ Production Ready (100% Test Pass Rate)
+## Project Status: ✅ Production Ready & Deployed (100% Test Pass Rate)
 
 This Python application translates PDF/EPUB/TXT files from English to Hindi and streams them as audiobooks. The system uses async processing to prefetch 3 pages ahead while the current page plays, with auto-play, auto-advance, and variable speed control for hands-free listening.
 
-**Latest Update:** All features tested at atomic, minor, and major levels with Playwright - 32/32 tests passing.
+**Production Deployment:** https://ebook-to-hindi-audio-with-auto.onrender.com/ (Render.com)
+
+**Latest Update:** All features tested at atomic, minor, and major levels with Playwright - 32/32 tests passing. iOS Safari compatibility verified with user interaction tracking for autoplay policies.
 
 ## Quick Start for AI Agents
 
-**Run the app:**
+**Local Development:**
 ```bash
 python src/app.py  # Starts Flask on http://localhost:5000
 ```
 
+**Production Deployment (Render):**
+- Auto-deploys from `feature/auto-play` branch when pushed to GitHub
+- Uses Gunicorn WSGI server with 120s timeout, 2 workers
+- Environment detection: `RENDER` env var triggers `/tmp` filesystem usage
+- See `render.yaml` for configuration
+
 **Key Architecture Points:**
-- `src/app.py` - Flask server (no auto-reloader to preserve state)
+- `src/app.py` - Flask server with Render environment detection (uses `/tmp` for ephemeral filesystem)
 - `src/parser.py` - Extracts text from PDF/EPUB/TXT (0-indexed pages, **250-word max per TXT page**)
 - `src/translator.py` - English→Hindi with custom SSL bypass & caching
-- `src/tts.py` - gTTS audio generation with MD5-based filenames
-- `src/pipeline.py` - ThreadPoolExecutor for async prefetching
-- `cache/` - Stores `translations.json` and `{md5hash}.mp3` files
-- `static/js/app.js` - Vanilla JS with auto-play/auto-advance logic
-- **Mobile-ready:** Viewport meta tag + responsive CSS (@media queries)
+- `src/tts.py` - gTTS audio generation with **exponential backoff retry** (5 attempts: 5s→10s→20s→40s→80s)
+- `src/pipeline.py` - ThreadPoolExecutor for async prefetching with rate-limit delays
+- `cache/` - Stores `translations.json` and `{md5hash}.mp3` files (memory-based on Render)
+- `static/js/app.js` - Vanilla JS with iOS Safari autoplay workarounds
+- **Mobile-ready:** iOS detection, user interaction tracking, touch optimizations
 
 ## Critical Implementation Details
 
@@ -96,8 +104,50 @@ speedSlider.addEventListener('input', (e) => {
 ```
 **Why:** Users need variable reading speeds for comprehension or time-saving. HTML5 Audio API supports this natively.
 
+### 9. Render Deployment & Rate Limiting (src/tts.py, src/app.py, render.yaml)
+```python
+# Environment detection for Render's ephemeral filesystem
+UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', '/tmp/books') if os.environ.get('RENDER') else 'books'
+CACHE_FOLDER = os.environ.get('CACHE_FOLDER', '/tmp/cache') if os.environ.get('RENDER') else 'cache'
+
+# Exponential backoff for gTTS rate limits on Render
+max_retries = 5
+base_delay = 5  # Start with 5 seconds
+for attempt in range(max_retries):
+    try:
+        time.sleep(2)  # Initial delay on Render
+        tts = gTTS(text=text, lang='hi', slow=False)
+        # ... generate audio
+        break
+    except Exception as tts_error:
+        if "429" in str(tts_error) or "Too Many Requests" in str(tts_error):
+            delay = base_delay * (2 ** attempt)  # 5, 10, 20, 40, 80 seconds
+            time.sleep(delay)
+```
+**Why:** Render's shared IP hits Google TTS rate limits. Must use exponential backoff (5→10→20→40→80s) and initial 2s delay. Production uses Gunicorn with 120s timeout to handle long retries.
+
+### 10. iOS Safari Autoplay Compatibility (static/js/app.js)
+```javascript
+// Detect iOS and track user interactions
+isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+hasUserInteracted = false;
+
+// Set flag on ANY user interaction (click, upload, etc.)
+uploadArea.addEventListener('click', () => { hasUserInteracted = true; });
+
+// Conditional autoplay in loadPage()
+if (hasUserInteracted) {
+    playAudio();  // Auto-play on desktop or after iOS user gesture
+} else if (isIOS) {
+    playPauseBtn.textContent = '▶️';
+    console.log('iOS: Waiting for user interaction to play');
+}
+```
+**Why:** iOS Safari blocks `audio.play()` without prior user gesture. Solution: detect iOS, track any user interaction, then enable autoplay. First page requires manual play tap, subsequent pages auto-play.
+
 ## Current Stack (All Dependencies Working)
 - **Flask 3.0.0** - Web server (no auto-reload)
+- **Gunicorn 21.2.0** - Production WSGI server (Render deployment)
 - **PyPDF2 3.0.1** - PDF parsing (0-indexed: `reader.pages[page_num]`)
 - **ebooklib 0.18** - EPUB parsing with BeautifulSoup
 - **deep-translator 1.11.4** - Google Translate with custom SSL bypass
@@ -198,6 +248,11 @@ await page.waitForTimeout(5000);  // Wait for processing
 3. **SSL Bypass Required**: Corporate networks need custom `SSLAdapter` and `verify=False`
 4. **Path Resolution**: Always use `os.path.abspath()` before `send_file()` in Flask routes
 5. **No Auto-Reload**: `use_reloader=False` prevents losing `current_pipeline` state
+6. **Render Ephemeral Filesystem**: Must use `/tmp/` for uploads/cache on Render (files lost between deployments)
+7. **Rate Limiting on Render**: Free tier shares IPs, hitting Google TTS limits - requires exponential backoff
+8. **iOS Autoplay Restriction**: Safari requires user gesture before audio.play() - track `hasUserInteracted` flag
+9. **Gunicorn Timeout**: Set to 120s to handle TTS retry delays (default 30s causes timeouts)
+10. **Memory-based Audio**: On Render, serve audio from memory cache via `BytesIO` (disk may not persist)
 
 ## Project Structure (Actual)
 ```
@@ -232,4 +287,7 @@ ai-translate/
 - `FEATURE_IMPLEMENTATION.md`: Detailed docs on TXT support, auto-play, auto-advance, speed control
 - `USAGE_GUIDE.md`: User-friendly how-to guide for new features
 - `COMPREHENSIVE_TEST_REPORT.md`: Complete testing results (atomic/minor/major levels, 32/32 passing)
+- `atomic-smoke-tests.md`: 80 legacy smoke test cases (all passing)
+- `render.yaml`: Production deployment configuration for Render.com
+- `requirements.txt`: Pinned dependencies (Flask, PyPDF2, gTTS, deep-translator, ebooklib, gunicorn)
 - `books/`: Sample files - "The Alchemist mini.pdf" (7 pages), "test_story.txt"
