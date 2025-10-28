@@ -5,6 +5,7 @@ Converts Hindi text to audio using gTTS
 from gtts import gTTS
 import os
 import hashlib
+import time
 from io import BytesIO
 
 
@@ -62,28 +63,50 @@ class TTSEngine:
             
             print(f"Generating audio for text (length: {len(text)})")
             
-            # Use gTTS to generate audio in memory
-            tts = gTTS(text=text, lang='hi', slow=False)
+            # Retry logic with exponential backoff for rate limiting
+            max_retries = 5
+            base_delay = 2  # Start with 2 seconds
             
-            # Save to memory buffer
-            audio_buffer = BytesIO()
-            tts.write_to_fp(audio_buffer)
-            audio_data = audio_buffer.getvalue()
-            
-            # Store in memory cache
-            self.memory_cache[cache_key] = audio_data
-            
-            # Also save to disk for local development
-            try:
-                with open(audio_path, 'wb') as f:
-                    f.write(audio_data)
-                print(f"Audio saved to disk: {audio_path} ({len(audio_data)} bytes)")
-            except Exception as disk_err:
-                print(f"Warning: Could not save to disk (ephemeral filesystem?): {disk_err}")
-            
-            print(f"Audio generated successfully in memory: {len(audio_data)} bytes")
-            return audio_path
-                
+            for attempt in range(max_retries):
+                try:
+                    # Use gTTS to generate audio in memory
+                    tts = gTTS(text=text, lang='hi', slow=False)
+                    
+                    # Save to memory buffer
+                    audio_buffer = BytesIO()
+                    tts.write_to_fp(audio_buffer)
+                    audio_data = audio_buffer.getvalue()
+                    
+                    # Store in memory cache
+                    self.memory_cache[cache_key] = audio_data
+                    
+                    # Also save to disk for local development
+                    try:
+                        with open(audio_path, 'wb') as f:
+                            f.write(audio_data)
+                        print(f"Audio saved to disk: {audio_path} ({len(audio_data)} bytes)")
+                    except Exception as disk_err:
+                        print(f"Warning: Could not save to disk (ephemeral filesystem?): {disk_err}")
+                    
+                    print(f"Audio generated successfully in memory: {len(audio_data)} bytes")
+                    return audio_path
+                    
+                except Exception as tts_error:
+                    error_msg = str(tts_error)
+                    
+                    # Check if it's a rate limit error
+                    if "429" in error_msg or "Too Many Requests" in error_msg:
+                        if attempt < max_retries - 1:
+                            delay = base_delay * (2 ** attempt)  # Exponential backoff
+                            print(f"Rate limit hit (429). Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
+                            time.sleep(delay)
+                            continue
+                        else:
+                            raise Exception(f"Failed to generate audio after {max_retries} attempts: Rate limit exceeded")
+                    else:
+                        # Not a rate limit error, raise immediately
+                        raise Exception(f"Failed to generate audio: {error_msg}")
+                        
         except Exception as e:
             raise Exception(f"Failed to generate audio: {str(e)}")
     
@@ -130,6 +153,11 @@ class TTSEngine:
             try:
                 audio_path = self.generate_audio(text, page_num=i)
                 audio_paths.append(audio_path)
+                
+                # Add delay between requests to avoid rate limiting
+                if i < len(texts) - 1:  # Don't delay after the last one
+                    time.sleep(1)  # 1 second delay between requests
+                    
             except Exception as e:
                 print(f"Error generating audio for text {i}: {e}")
                 audio_paths.append(None)

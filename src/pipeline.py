@@ -8,6 +8,7 @@ import threading
 from queue import Queue
 import sys
 import os
+import time
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -126,6 +127,9 @@ class ProcessingPipeline:
                 
                 try:
                     self.process_page(i)
+                    # Add delay between prefetch requests to avoid rate limiting
+                    if i < min(start_page + self.prefetch_count, self.total_pages) - 1:
+                        time.sleep(1.5)  # 1.5 second delay between prefetch pages
                 except Exception as e:
                     print(f"Prefetch error for page {i}: {e}")
         
