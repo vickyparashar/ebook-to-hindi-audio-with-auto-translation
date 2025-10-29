@@ -1,0 +1,20 @@
+
+This is the first paragraph of our test story. It contains several sentences 
+to make it realistic. We want to ensure that the pagination works correctly 
+and creates multiple pages from this content.
+
+This is the second paragraph. It also has multiple sentences. The smart 
+pagination algorithm should handle this properly and create pages that are 
+neither too large nor too small.
+
+This is the third paragraph with even more content. We're adding enough text 
+here to ensure that the pagination algorithm will create multiple pages. Each 
+page should be around 200-250 words for optimal processing speed.
+
+The fourth paragraph continues our story. By having multiple paragraphs with 
+varying lengths, we can test how well the algorithm groups content together. 
+The goal is fast processing without losing narrative flow.
+
+And finally, a fifth paragraph to round things out. This should be enough 
+content to create at least 2-3 pages, demonstrating that large text files 
+will be automatically split into manageable chunks.
